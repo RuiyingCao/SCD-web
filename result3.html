@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Result</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+        .container { width: 75%; margin: auto; } /* 调整容器宽度 */
+        .section { border: 2px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 10px; background-color: #f9f9f9; }
+        .section-title { font-size: 28px; font-weight: bold; color: #333; border-bottom: 3px solid #4CAF50; margin-bottom: 15px; padding-bottom: 10px; }
+        .subsection {
+            padding-top: 10px;
+            margin-top: 20px;
+        }
+        .subsection.noiseless-channel {
+            border-bottom: 2px solid #ddd;
+        }
+        .subsection .subhighlight {
+            border: 4px dashed #ccc; /* 添加灰色虚线框 */
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9; /* 背景颜色 */
+            display: inline-block; /* 使边框根据内容自动调整 */
+            max-width: 100%; /* 确保不超过父容器的宽度 */
+        }
+        table { width: 50%; margin: 20px auto; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #f2f2f2; }
+        .image-container { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; position: relative; }
+        .image-container img { width: 600px; height: auto; margin-right: 10px; border: 1px solid #ccc; padding: 5px; background-color: #fff; }
+        .image-container span { font-size: 18px; font-weight: bold; }
+        .image-container p { font-size: 16px; }
+        .image-container:hover { box-shadow: 0 0 10px rgba(0, 0, 0, 0.3); }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 200px;
+            height: 100%;
+            background-color: #f1f1f1;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .sidebar a {
+            display: block;
+            padding: 10px;
+            text-decoration: none;
+            color: #000;
+            border-bottom: 1px solid #ddd;
+        }
+        .sidebar a:hover {
+            background-color: #ddd;
+        }
+        .content { float: left; width: calc(100% - 220px); }
+        .subsection { margin-top: 15px; }
+        .subsection h3 { margin-top: 0; }
+        .highlight .tooltip-text {
+            visibility: hidden;
+            width: 600px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            padding: 5px 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%; /* Position the tooltip above the text */
+            left: 50%;
+            margin-left: -150px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 18px;
+        }
+        .highlight:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        .image-container { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; max-width: 100%; }
+        .image-container img { width: 100%; height: auto; border: 1px solid #ccc; padding: 5px; background-color: #fff; }
+        .image-container .image-wrapper { text-align: center; margin: 0 10px; background-color: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 5px; transition: box-shadow 0.3s, transform 0.3s; flex: 1; max-width: 100%; }
+        .image-container .image-wrapper:hover { box-shadow: 0 0 15px rgba(0, 0, 0, 0.2); transform: translateY(-5px); }
+        .image-container .image-wrapper span { font-size: 18px; font-weight: bold; display: block; margin-top: 5px; }
+        .image-container .image-wrapper p { font-size: 18px; margin-top: 5px; text-align: left; }
+        .form-group { display: flex; justify-content: center; align-items: center; margin-bottom: 10px; }
+        input, button { padding: 8px; margin: 5px; }
+        button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+
+        /* 弹框样式 */
+        .alert {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <a href="#sample-info">Sample Information Extraction Completeness</a>
+        <a href="#min-coverage">Minimum Sequencing Coverage Depth for Decoding All Information</a>
+    </div>
+    <div class="container">
+        <h1>Quantifying Sequencing Coverage Depth</h1>
+
+        <!-- 状态消息 -->
+        <div class="status-message">
+            <h3 style="color: red;">The processing is complete!</h3>
+        </div>
+
+        <!-- 文件已上传，显示图片和参数输入 -->
+        <!-- Sample Information Extraction Completeness Section -->
+        <div class="section" id="sample-info">
+            <h2 class="section-title">Sample Information Extraction Completeness</h2>
+            <div>
+                <h3>Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides:<br>✔The proportion of encoded strands expected to be successfully decoded at your preset sequencing coverage depth, if you choose "Preset sequencing coverage depth".<br>✔The minimum sequencing coverage depth required to achieve your preset encoded strand decoding proportion, if you choose "Expected decoding proportion of encoded strands".</h3>
+            </div>
+            <div class="image-container">
+                <div class="image-wrapper">
+                    <img id="fig7-1" src="{{ url_for('uploaded_file', filename='图7-1.png') }}" alt="Fig. 1" style="width: 80%; height: auto;">
+                    <span>Fig. 1</span>
+                    <p>Fig. 1 illustrates the relationship between expected decoding proportion of encoded strands and sequencing coverage depth under two different channels.</p>
+                </div>
+            </div>
+            <!-- 用户交互部分 -->
+            <h4>----------------------------------------------------Parameter Settings----------------------------------------------------</h4>
+            <div class="form-group">
+                <label for="choice">Mark Option:</label>
+                <select id="choice" onchange="toggleInput()">
+                    <option value="preset_coverage">Preset coverage depth</option>
+                    <option value="expected_proportion">Expected decoding proportion of encoded strands</option>
+                </select>
+            </div>
+            <div id="preset_coverage_input" class="form-group">
+                <label for="preset_coverage">Preset coverage depth:</label>
+                <input type="number" id="preset_coverage" step="0.5" min="0.5" max="30" value="5">
+                <br>
+                <button onclick="submitPresetCoverage()">Update Parameter</button>
+            </div>
+            <div id="expected_proportion_input" class="form-group" style="display: none;">
+                <label for="expected_proportion">Expected decoding proportion of encoded strands:</label>
+                <input type="number" id="expected_proportion" step="0.01" min="0" max="1" value="0.5">
+                <br>
+                <button onclick="submitExpectedProportion()">Update Parameter</button>
+            </div>
+            <h4>----------------------------------------------------Simulation Results----------------------------------------------------</h4>
+            <div id="result_message"></div>
+        </div>
+        <!-- Minimum Sequencing Coverage Depth Section -->
+        <div class="section" id="min-coverage">
+            <h2 class="section-title">Minimum Sequencing Coverage Depth for Decoding All Information</h2>
+            <div class="subsection noiseless-channel" id="noiseless-channel">
+                <h2 class="subhighlight">Simulation Results in the Noiseless Channel</h2>
+                <div>
+                    <h3>✔Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides the expected minimum sequencing coverage depth required to successfully recover all information under the preset encoding redundancy below. (see Fig. 2)</h3>
+                </div>
+                <div class="image-container">
+                    <div class="image-wrapper">
+                        <img id="fig7-2" src="{{ url_for('uploaded_file', filename='图7-2.png') }}" alt="Fig. 2" style="width: 80%; height: auto;">
+                        <span>Fig. 2</span>
+                        <p>Fig. 2 illustrates the relationship between the expected sequencing coverage depth and coding redundancy required for the successful decoding of all information.</p>
+                    </div>
+                </div>
+                <!-- 用户交互部分 -->
+                <h4>----------------------------------------------------Parameter Settings----------------------------------------------------</h4>
+                <div class="form-group">
+                    <label for="coding_redundancy">
+                        \[
+                        \text{coding redundancy} = \frac{\#encoded\ strands}{\#information\ strands} :
+                        \]
+                    </label>
+                    <input type="number" id="coding_redundancy" step="0.01" min="0.95" max="4" value="2">
+                </div>
+                <button onclick="submitCodingRedundancy()">Update Parameter</button>
+                <h4>----------------------------------------------------Simulation Results----------------------------------------------------</h4>
+                <div id="coding_redundancy_result" style="margin-top: 10px; margin-bottom: 20px;"></div>
+            </div>
+            <br>
+            <div class="subsection noisy-channel" id="noisy-channel">
+                <h2 class="subhighlight">Simulation Results in the Noisy Channel</h2>
+                <div>
+                    <h3>✔Under the condition that at least two reads are sufficient to successfully recover an encoded strand, this block provides upper and lower bound on the sequencing coverage depth required to recover all information.</h3>
+                </div>
+                <!-- 用户交互部分 -->
+                <h4>----------------------------------------------------Parameter settings----------------------------------------------------</h4>
+                <div class="form-group">
+                    <label for="R_noisy">
+                        \[
+                        \text{coding redundancy} = \frac{\#encoded\ strands}{\#information\ strands} :
+                        \]
+                    </label>
+                    <input type="number" id="R_noisy" step="0.1" min="1.1" value="2">
+                </div>
+                <div class="form-group">
+                    <label for="a">How many noisy copies of each encoded strand are needed to reconstruct it:</label>
+                    <input type="number" id="a" step="1" min="2" value="2">
+                </div>
+                <button onclick="submitBoundsParameters()">Update Parameters</button>
+                <div id="bounds_result" style="margin-top: 10px;"></div>
+                <h4>----------------------------------------------------Simulation Results----------------------------------------------------</h4>
+                <div>
+                    The following upper and lower bounds hold with a probability of 99.9%.
+                </div>
+                <table>
+                    <tr>
+                        <th>Lower Bound</th>
+                        <th>Upper Bound</th>
+                    </tr>
+                    <tr>
+                        <td>{{ lower_bound }}</td>
+                        <td>{{ upper_bound }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹框 -->
+    <div class="alert" id="success-alert">Update successfully！</div>
+
+    <script>
+        function showAlert() {
+            const alert = document.getElementById('success-alert');
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000); // 3秒后自动隐藏
+        }
+
+        function toggleInput() {
+            const choice = document.getElementById('choice').value;
+            const presetCoverageInput = document.getElementById('preset_coverage_input');
+            const expectedProportionInput = document.getElementById('expected_proportion_input');
+
+            if (choice === 'preset_coverage') {
+                presetCoverageInput.style.display = 'block';
+                expectedProportionInput.style.display = 'none';
+            } else if (choice === 'expected_proportion') {
+                presetCoverageInput.style.display = 'none';
+                expectedProportionInput.style.display = 'block';
+            }
+        }
+
+        // 从会话中获取 t 值
+        const t = {{ session.get("t", 10) }};
+
+        function submitPresetCoverage() {
+            const presetCoverage = document.getElementById('preset_coverage').value;
+            fetch('/update_figure1', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    choice: 'preset_coverage',
+                    value: presetCoverage,
+                    t: t // 传递 t 值
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('result_message').innerText = data.message;
+                    // 刷新图片
+                    const img = document.getElementById('fig7-1');
+                    img.src = data.image_url;
+                    showAlert();
+                } else {
+                    document.getElementById('result_message').innerText = data.message;
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function submitExpectedProportion() {
+            const expectedProportion = document.getElementById('expected_proportion').value;
+            fetch('/update_figure1', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    choice: 'expected_proportion',
+                    value: expectedProportion,
+                    t: t // 传递 t 值
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('result_message').innerText = data.message;
+                    // 刷新图片
+                    const img = document.getElementById('fig7-1');
+                    img.src = data.image_url;
+                    showAlert();
+                } else {
+                    document.getElementById('result_message').innerText = data.message;
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function submitCodingRedundancy() {
+            const codingRedundancy = document.getElementById('coding_redundancy').value;
+            fetch('/update_figure2', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    coding_redundancy: codingRedundancy,
+                    t: t // 传递 t 值
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('coding_redundancy_result').innerText = data.message;
+                    // 刷新图片
+                    const img = document.getElementById('fig7-2');
+                    img.src = data.image_url;
+                    showAlert();
+                } else {
+                    document.getElementById('coding_redundancy_result').innerText = data.message;
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function submitBoundsParameters() {
+            const R_noisy = document.getElementById('R_noisy').value;
+            const a = document.getElementById('a').value;
+            fetch('/update_bounds_parameters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    R_noisy: R_noisy,
+                    a: a
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 更新表格中的上下界
+                    document.querySelector('#noisy-channel table tr:last-child td:first-child').innerText = data.lower_bound;
+                    document.querySelector('#noisy-channel table tr:last-child td:last-child').innerText = data.upper_bound;
+                    // 清空 bounds_result 的内容
+                    document.getElementById('bounds_result').innerText = '';
+                    showAlert();
+                } else {
+                    document.getElementById('bounds_result').innerText = data.message;
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>

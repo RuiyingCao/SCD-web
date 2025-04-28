@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web of SCD</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+        .container { width: 80%; margin: auto; }
+        .section { border: 2px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 10px; background-color: #f9f9f9; }
+        .image-container { display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+        .image-container img { width: 600px; height: auto; margin-right: 10px; border: 1px solid #ccc; padding: 5px; background-color: #fff; }
+        .image-container span { font-size: 18px; font-weight: bold; }
+        .form-group { margin-bottom: 10px; }
+        input, button { padding: 8px; margin: 5px; }
+        button { background-color: #4caf50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #4caf50; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Quantifying Sequencing Coverage Depth</h1>
+
+        <!-- 上传文件 -->
+        <div class="section">
+            <h3>----------------------------------Simulation Type----------------------------------</h3>
+            <h4 style="color: red;">Requirement: TXT file only! One number for each line.</h4>
+            <form action="/" method="post" enctype="multipart/form-data" id="uploadForm">
+                <div class="form-group">
+                    <label for="fileType">Select Simulation Type:</label>
+                    <select name="fileType" id="fileType" required>
+                        <option value="sequencing">Upload Sequencing File</option>
+                        <option value="pcr_efficiency">Upload PCR Efficiency File</option>
+                        <option value="simulate">Pure Simulation</option>
+                    </select>
+                </div>
+                <div class="form-group" id="synthesisnumDownload" style="display: none;">
+                    <a href="/uploads/PCR30.txt" download="PCR30.txt">Download example_PCR30.txt</a>
+                </div>
+                <div class="form-group" id="PCREfficiencyDownload" style="display: none;">
+                    <a href="/uploads/PCR_efficiency.txt" download="PCR_efficiency.txt">Download example_PCR_efficiency.txt</a>
+                </div>
+                <div class="form-group" id="sequencingOptions" style="display: block;">
+                    <h3>-----------------------------Upload Sequencing File-----------------------------</h3>
+                    <input type="file" name="file" id="fileInput" required>
+                    <label id="fileNameLabel" for="fileInput">choose file</label>
+                </div>
+                <div class="form-group" id="pcrEfficiencyOptions" style="display: none;">
+                    <h3>---------------------------Upload PCR Efficiency File---------------------------</h3>
+                    <input type="file" name="pcr_efficiency_file" id="pcrEfficiencyFileInput">
+                    <label id="pcrEfficiencyFileNameLabel" for="pcrEfficiencyFileInput">choose PCR efficiency file</label>
+                    <h3>---------------------------------Synthesis Settings---------------------------------</h3>
+                    <div id="optionContainer" style="display: none;">
+                        <label for="option">Synthesis Option:</label>
+                        <select name="option" id="option">
+                            <option value="per_sequence">Expected number of synthesized sequences per strand</option>
+                            <option value="total_sequences">Total expected number of synthesized sequences</option>
+                        </select>
+                    </div>
+                    <div id="perSequenceOptions" style="display: none;">
+                        <label for="x">How many synthesized sequences per strand:</label>
+                        <input type="number" name="x" id="x" value="5">
+                        <br>
+                        <label for="y">Variance of the synthesized sequences:</label>
+                        <input type="number" name="y" id="y" value="2">
+                    </div>
+                    <div id="totalSequencesOption" style="display: none;">
+                        <label for="S">How many synthesized sequences in total:</label>
+                        <input type="number" name="S" id="S" value="50000">
+                    </div>
+                    <h3>---------------------------------PCR Cycles Settings--------------------------------</h3>
+                    <label for="t_pcr_efficiency">PCR cycles:</label>
+                    <input type="number" name="t_pcr_efficiency" id="t_pcr_efficiency" min="1" value="15" required>
+                </div>
+                <div class="form-group" id="simulateOptions" style="display: none;">
+                    <h3>-----------------------------PCR Efficiency Settings-----------------------------</h3>
+                    <label for="n">How many information strands:</label>
+                    <input type="number" name="n" id="n" value="10000">
+                    <br>
+                    <label for="simulateX">PCR amplification efficiency:</label>
+                    <input type="number" name="simulateX" id="simulateX" value="0.9" min="0" max="1" step="0.01">
+                    <br>
+                    <label for="simulateY">Variance of PCR amplification efficiency:</label>
+                    <input type="number" name="simulateY" id="simulateY" value="0.05" min="0" max="1" step="0.01">
+                    <h3>---------------------------------Synthesis Settings---------------------------------</h3>
+                    <div id="simulateOptionContainer" style="display: none;">
+                        <label for="simulateOption">Synthesis Option:</label>
+                        <select name="simulateOption" id="simulateOption">
+                            <option value="per_sequence">Expected number of synthesized sequences per strand</option>
+                            <option value="total_sequences">Total expected number of synthesized sequences</option>
+                        </select>
+                    </div>
+                    <div id="simulatePerSequenceOptions" style="display: none;">
+                        <label for="simulateXPerSequence">How many synthesized sequences per strand:</label>
+                        <input type="number" name="simulateXPerSequence" id="simulateXPerSequence" value="5" >
+                        <br>
+                        <label for="simulateYPerSequence">Variance of the synthesized sequences:</label>
+                        <input type="number" name="simulateYPerSequence" id="simulateYPerSequence" value="2" >
+                    </div>
+                    <div id="simulateTotalSequencesOption" style="display: none;">
+                        <label for="simulateS">How many synthesized sequences in total:</label>
+                        <input type="number" name="simulateS" id="simulateS" value="50000">
+                    </div>
+                    <h3>--------------------------------PCR Cycles Settings--------------------------------</h3>
+                    <label for="t_simulate">PCR cycles:</label>
+                    <input type="number" name="t_simulate" id="t_simulate" value="15" min="1" required>
+                </div>
+                <button type="submit">confirm upload</button>
+            </form>
+        </div>
+    </div>
+
+    <div>
+        <h3>-----DNA Storage Process and Software Parameter Description-----</h3>
+        <img style="width: 80%; height: auto;" src="/static/framework.png">
+    </div>
+    <script>
+         function toggleDownloadLinks() {
+            const fileType = document.getElementById('fileType').value;
+            const synthesisnumDownload = document.getElementById('synthesisnumDownload');
+            const PCREfficiencyDownload = document.getElementById('PCREfficiencyDownload');
+
+            synthesisnumDownload.style.display = fileType === 'sequencing' ? 'block' : 'none';
+            PCREfficiencyDownload.style.display = fileType === 'pcr_efficiency' ? 'block' : 'none';
+        }
+
+        document.getElementById('fileType').addEventListener('change', function(event) {
+            toggleRequiredFields();
+            toggleDownloadLinks(); // 添加此行以调用下载链接切换函数
+        });
+
+
+        function toggleRequiredFields() {
+            const fileType = document.getElementById('fileType').value;
+            const pcrEfficiencyOptions = document.getElementById('pcrEfficiencyOptions');
+            const simulateOptions = document.getElementById('simulateOptions');
+
+            // Reset all fields to not required
+            document.querySelectorAll('#uploadForm input[required]').forEach(input => input.removeAttribute('required'));
+            document.querySelectorAll('#uploadForm select[required]').forEach(select => select.removeAttribute('required'));
+
+            if (fileType === 'sequencing') {
+                document.getElementById('sequencingOptions').style.display = 'block';
+                pcrEfficiencyOptions.style.display = 'none';
+                simulateOptions.style.display = 'none';
+                document.getElementById('fileInput').setAttribute('required', 'required');
+            } else if (fileType === 'pcr_efficiency') {
+                document.getElementById('sequencingOptions').style.display = 'none';
+                pcrEfficiencyOptions.style.display = 'block';
+                simulateOptions.style.display = 'none';
+                document.getElementById('pcrEfficiencyFileInput').setAttribute('required', 'required');
+                document.getElementById('optionContainer').style.display = 'block'; // Ensure optionContainer is displayed
+                document.getElementById('option').setAttribute('required', 'required');
+                document.getElementById('x').setAttribute('required', 'required');
+                document.getElementById('y').setAttribute('required', 'required');
+                document.getElementById('t_pcr_efficiency').setAttribute('required', 'required');
+                togglePcrEfficiencyOptions(); // Ensure options are toggled
+            } else if (fileType === 'simulate') {
+                document.getElementById('sequencingOptions').style.display = 'none';
+                pcrEfficiencyOptions.style.display = 'none';
+                simulateOptions.style.display = 'block';
+                document.getElementById('n').setAttribute('required', 'required');
+                document.getElementById('simulateX').setAttribute('required', 'required');
+                document.getElementById('simulateY').setAttribute('required', 'required');
+                document.getElementById('simulateOptionContainer').style.display = 'block'; // Ensure simulateOptionContainer is displayed
+                document.getElementById('t_simulate').setAttribute('required', 'required');
+                toggleSimulateOptions(); // Ensure options are toggled
+            }
+        }
+
+
+        function togglePcrEfficiencyOptions() {
+            const option = document.getElementById('option').value;
+            const perSequenceOptions = document.getElementById('perSequenceOptions');
+            const totalSequencesOption = document.getElementById('totalSequencesOption');
+
+            perSequenceOptions.style.display = option === 'total_sequences' ? 'none' : 'block';
+            totalSequencesOption.style.display = option === 'total_sequences' ? 'block' : 'none';
+
+            if (option === 'total_sequences') {
+                document.getElementById('S').setAttribute('required', 'required');
+            } else {
+                document.getElementById('S').removeAttribute('required');
+            }
+        }
+
+        function toggleSimulateOptions() {
+            const simulateOption = document.getElementById('simulateOption').value;
+            const simulatePerSequenceOptions = document.getElementById('simulatePerSequenceOptions');
+            const simulateTotalSequencesOption = document.getElementById('simulateTotalSequencesOption');
+
+            simulatePerSequenceOptions.style.display = simulateOption === 'total_sequences' ? 'none' : 'block';
+            simulateTotalSequencesOption.style.display = simulateOption === 'total_sequences' ? 'block' : 'none';
+
+            if (simulateOption === 'total_sequences') {
+                document.getElementById('simulateS').setAttribute('required', 'required');
+            } else {
+                document.getElementById('simulateS').removeAttribute('required');
+            }
+        }
+
+        document.getElementById('fileType').addEventListener('change', function(event) {
+            toggleRequiredFields();
+        });
+
+        document.getElementById('option').addEventListener('change', function(event) {
+            togglePcrEfficiencyOptions();
+        });
+
+        document.getElementById('simulateOption').addEventListener('change', function(event) {
+            toggleSimulateOptions();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            var fileName = event.target.files[0] ? event.target.files[0].name : 'choose file';
+            document.getElementById('fileNameLabel').textContent = fileName;
+        });
+
+        document.getElementById('pcrEfficiencyFileInput').addEventListener('change', function(event) {
+            var fileName = event.target.files[0] ? event.target.files[0].name : 'choose PCR efficiency file';
+            document.getElementById('pcrEfficiencyFileNameLabel').textContent = fileName;
+        });
+
+        // Initialize required fields based on the current selection
+        toggleRequiredFields();
+        togglePcrEfficiencyOptions();
+        toggleSimulateOptions();
+    </script>
+</body>
+</html>

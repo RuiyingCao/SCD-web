@@ -107,8 +107,8 @@
 </head>
 <body>
     <div class="sidebar">
-        <a href="#sample-info">Sample Information Extraction Completeness</a>
-        <a href="#min-coverage">Minimum Sequencing Coverage Depth for Decoding All Information</a>
+        <a href="#sample-info">Sample Information Retrieval Integrity</a>
+        <a href="#min-coverage">Minimum Sequencing Coverage Depth for Recovering All Information</a>
     </div>
     <div class="container">
         <h1>Quantifying Sequencing Coverage Depth</h1>
@@ -121,7 +121,7 @@
         <!-- 文件已上传，显示图片和参数输入 -->
         <!-- Sample Information Extraction Completeness Section -->
         <div class="section" id="sample-info">
-            <h2 class="section-title">Sample Information Extraction Completeness</h2>
+            <h2 class="section-title">Sample Information Retrieval Integrity</h2>
             <div>
                 <h3>Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides:<br>✔The proportion of encoded strands expected to be successfully decoded at your preset sequencing coverage depth, if you choose "Preset sequencing coverage depth".<br>✔The minimum sequencing coverage depth required to achieve your preset encoded strand decoding proportion, if you choose "Expected decoding proportion of encoded strands".</h3>
             </div>
@@ -162,7 +162,7 @@
             <div class="subsection noiseless-channel" id="noiseless-channel">
                 <h2 class="subhighlight">Simulation Results in the Noiseless Channel</h2>
                 <div>
-                    <h3>✔Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides the expected minimum sequencing coverage depth required to successfully recover all information under the preset encoding redundancy below. (see Fig. 2)</h3>
+                    <h3>✔Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides the expected minimum sequencing coverage depth required to successfully recover all information under the preset code rate below. (see Fig. 2)</h3>
                 </div>
                 <div class="image-container">
                     <div class="image-wrapper">
@@ -176,10 +176,10 @@
                 <div class="form-group">
                     <label for="coding_redundancy">
                         \[
-                        \text{coding redundancy} = \frac{\#encoded\ strands}{\#information\ strands} :
+                        \frac{\#encoded\ strands}{\#information\ strands} :
                         \]
                     </label>
-                    <input type="number" id="coding_redundancy" step="0.01" min="0.95" max="4" value="2">
+                    <input type="number" id="coding_redundancy" step="0.1" min="0.95" max="4" value="2">
                 </div>
                 <button onclick="submitCodingRedundancy()">Update Parameter</button>
                 <h4>----------------------------------------------------Simulation Results----------------------------------------------------</h4>
@@ -196,7 +196,7 @@
                 <div class="form-group">
                     <label for="R_noisy">
                         \[
-                        \text{coding redundancy} = \frac{\#encoded\ strands}{\#information\ strands} :
+                        \frac{\#encoded\ strands}{\#information\ strands} :
                         \]
                     </label>
                     <input type="number" id="R_noisy" step="0.1" min="1.1" value="2">

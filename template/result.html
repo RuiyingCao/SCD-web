@@ -104,7 +104,7 @@
 <body>
      <div class="sidebar">
         <a href="#data-analysis-section">Data Analysis and Channel Probability Distribution Simulation</a>
-        <a href="#sample-information-section">Sample Information Extraction Completeness</a>
+        <a href="#sample-information-section">Sample Information Retrieval Integrity</a>
         <a href="#minimum-sequencing-coverage-depth-section">Minimum Sequencing Coverage Depth for Recovering All Information</a>
     </div>
 
@@ -150,7 +150,7 @@
             <!-- Sample Information Extraction Completeness Section -->
             <div class="section sample-information" id="sample-information-section">
                 <h2 class="section-title">
-                    Sample Information Extraction Completeness
+                    Sample Information Retrieval Integrity
                 </h2>
                 <div>
                     <h3>Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides:<br>✔The proportion of encoded strands expected to be successfully decoded at your preset sequencing coverage depth, if you choose "Preset sequencing coverage depth".<br>✔The minimum sequencing coverage depth required to achieve your preset encoded strand decoding proportion, if you choose "Expected decoding proportion of encoded strands".</h3>
@@ -198,13 +198,13 @@
                         Simulation Results in the Noiseless Channel
                     </h2>
                     <div>
-                        <h3>Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides:<br>✔The expected minimum sequencing coverage depth required to successfully recover all information under the preset encoding redundancy below. (see Fig. 5)<br>✔Probability of successfully recovering all information in one experiment under different sequencing coverage depth condition. (see Fig. 6)</h3>
+                        <h3>Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides:<br>✔The expected minimum sequencing coverage depth required to successfully recover all information under the preset inverse code rate below. (see Fig. 5)<br>✔Probability of successfully recovering all information in one experiment under different sequencing coverage depth condition. (see Fig. 6)</h3>
                     </div>
                     <div class="image-container">
                         <div class="image-wrapper">
                             <img src="{{ url_for('uploaded_file', filename='图4-2.png') }}" alt="图4-2" style="width: 80%; height: auto;">
                             <span>Fig. 5</span>
-                            <p>Fig. 5 illustrates the relationship between the expected sequencing coverage depth and coding redundancy required for the successful decoding of all information.</p>
+                            <p>Fig. 5 illustrates the relationship between the expected sequencing coverage depth and the code rate  required for the successful decoding of all information.</p>
                         </div>
                         <div class="image-wrapper">
                             <img src="{{ url_for('uploaded_file', filename='图4-3.png') }}" alt="图4-3" style="width: 80%; height: auto;">
@@ -218,7 +218,7 @@
                             <div class="form-group">
                                 <label for="R" title="E.g., encode m information strands into n encoded strands, the coding redundancy is n/m;">
                                     \[
-                                    \text{coding redundancy} = \frac{\#encoded\ strands}{\#information\ strands} :
+                                    \frac{\#encoded\ strands}{\#information\ strands} :
                                     \]
                                 </label>
                                 <input type="number" name="R" id="R" value="{{ R }}" required step="0.1" min="1.1">
@@ -243,7 +243,7 @@
                         <div class="form-group">
                             <label for="R_noisy" title="E.g., encode m information strands into n encoded strands, the coding redundancy is n/m;">
                                 \[
-                                \text{coding redundancy} = \frac{\#encoded\ strands}{\#information\ strands} :
+                                \frac{\#encoded\ strands}{\#information\ strands} :
                                 \]
                             </label>
                             <input type="number" name="R_noisy" id="R_noisy" value="{{ R_noisy }}" required step="0.1" min="1.1">

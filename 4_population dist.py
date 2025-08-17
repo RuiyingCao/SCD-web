@@ -118,7 +118,7 @@ def plot_graphs(Thm1, Thm2, mle_mean, mle_variance, m, R, preset_coverage, expec
     plt.plot(x, uniform, label='Uniform dist.', color='#a3c0fb', marker='o', linestyle='--', markersize=4)
     plt.plot(x, PCR10, label='channel dist. of your sequencing data', color='#305299', marker='o', markersize=4)
     plt.xlabel('Coverage depth', fontsize=20)
-    plt.ylabel('Coding redundancy', fontsize=20)
+    plt.ylabel('Inverse code rate', fontsize=20)
     plt.xticks(np.arange(0, 10.5, 0.5), fontsize=16)
     plt.yticks([1, 1.5, 2, 2.5, 3, 3.5, 4], fontsize=16)
     plt.xlim(0, 10)
@@ -159,7 +159,7 @@ def plot_graphs(Thm1, Thm2, mle_mean, mle_variance, m, R, preset_coverage, expec
     plt.ylim(bottom=-0.00001)
     plt.xticks(np.arange(0, 11, 1))
     plt.xlabel('Coverage depth', fontsize=20)
-    plt.ylabel("Variance per strand (f(K)=var/m)", fontsize=20)
+    plt.ylabel("Variance per strand (var/n)", fontsize=20)
     plt.legend(loc='upper right', fontsize=20)
     plt.tight_layout()
 

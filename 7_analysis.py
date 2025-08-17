@@ -117,7 +117,7 @@ def plot_graphs(Thm1, Thm2, preset_coverage=None, expected_proportion=None, codi
     plt.plot(x, uniform, label='Uniform dist.', color='#a3c0fb', marker='o', linestyle='--', markersize=4)
     plt.plot(x, PCR10, label='simulation dist.', color='#305299', marker='o', markersize=4)
     plt.xlabel('Coverage depth', fontsize=20)
-    plt.ylabel('Coding redundancy', fontsize=20)
+    plt.ylabel('Inverse code rate', fontsize=20)
     plt.xticks(np.arange(0, 30.5, 0.5), fontsize=16)
     plt.yticks([1, 1.5, 2, 2.5, 3, 3.5, 4], fontsize=16)
     plt.xlim(0, 30)

@@ -1,385 +1,1111 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web of SCD</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quantifying Sequencing Coverage Depth</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
-        .container { width: 75%; margin: auto; } /* 调整容器宽度 */
-        .section { border: 2px solid #ddd; padding: 15px; margin: 15px 0; border-radius: 10px; background-color: #f9f9f9; }
-        .section-title { font-size: 28px; font-weight: bold; color: #333; border-bottom: 3px solid #4CAF50; margin-bottom: 15px; padding-bottom: 10px; }
-        .subsection {
-            padding-top: 10px;
-            margin-top: 20px;
+        :root {
+            --primary: #1f4e79;
+            --primary-dark: #173a5a;
+            --primary-light: #eaf2f8;
+            --accent: #3a7d44;
+            --accent-light: #eef7f0;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --border: #d9e2ec;
+            --text: #243447;
+            --muted: #6b7c93;
+            --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+            --radius: 16px;
         }
-        .subsection.noiseless-channel {
-            border-bottom: 2px solid #ddd;
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.7;
         }
-        .subsection .subhighlight {
-            border: 4px dashed #ccc; /* 添加灰色虚线框 */
-            padding: 10px;
-            margin-bottom: 10px;
-            background-color: #f9f9f9; /* 背景颜色 */
-            display: inline-block; /* 使边框根据内容自动调整 */
-            max-width: 100%; /* 确保不超过父容器的宽度 */
-        }
-        .image-container { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; max-width: 100%; }
-        .image-container img { width: 100%; height: auto; border: 1px solid #ccc; padding: 5px; background-color: #fff; }
-        .image-container .image-wrapper { text-align: center; margin: 0 10px; background-color: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 5px; transition: box-shadow 0.3s, transform 0.3s; flex: 1; max-width: 100%; }
-        .image-container .image-wrapper:hover { box-shadow: 0 0 15px rgba(0, 0, 0, 0.2); transform: translateY(-5px); }
-        .image-container .image-wrapper span { font-size: 18px; font-weight: bold; display: block; margin-top: 5px; }
-        .image-container .image-wrapper p { font-size: 18px; margin-top: 5px; text-align: left; }
-        .form-group { display: flex; justify-content: center; align-items: center; margin-bottom: 10px; }
-        input, button { padding: 8px; margin: 5px; }
-        button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #45a049; }
-        .highlight { font-weight: bold; background-color: #fafad1; border: 2px solid #f1f17e; padding: 10px; border-radius: 5px; display: inline-block; position: relative; }
-        .highlight .tooltip-text {
-            visibility: hidden;
-            width: 600px;
-            background-color: #555;
+
+        a { color: inherit; text-decoration: none; }
+        img { max-width: 100%; display: block; }
+
+        .topbar {
+            background:
+                linear-gradient(135deg, rgba(31, 78, 121, 0.96), rgba(23, 58, 90, 0.96)),
+                linear-gradient(180deg, #1f4e79, #173a5a);
             color: #fff;
-            text-align: center;
-            border-radius: 5px;
-            padding: 5px 10px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%; /* Position the tooltip above the text */
-            left: 50%;
-            margin-left: -150px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 18px;
+            padding: 28px 24px 34px;
         }
-        .highlight:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
+
+        .topbar-inner {
+            max-width: 1440px;
+            margin: 0 auto;
         }
-        table { width: 50%; margin: 20px auto; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        th { background-color: #f2f2f2; }
-        .form-group label {
-            display: inline-block;
-            text-align: right;
-            margin-right: 10px;
+
+        .topbar h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.3;
         }
-        .form-group input {
-            width: 50px; /* 减小输入框的宽度到现在的0.25倍 */
+
+        .topbar p {
+            margin: 12px 0 0;
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.88);
+            max-width: 980px;
         }
+
+        .top-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .top-chip {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            font-size: 13px;
+        }
+
+        .page {
+            max-width: 1440px;
+            margin: -18px auto 40px;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
         .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 200px;
-            height: 100%;
-            background-color: #f1f1f1;
-            padding: 10px;
-            box-sizing: border-box;
-            overflow-y: auto;
+            position: sticky;
+            top: 20px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
         }
+
+        .sidebar-header {
+            padding: 18px 18px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-header h3 {
+            margin: 0;
+            font-size: 17px;
+            color: var(--primary);
+        }
+
+        .sidebar-header p {
+            margin: 8px 0 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .sidebar nav { padding: 10px; }
+
         .sidebar a {
             display: block;
-            padding: 10px;
-            text-decoration: none;
-            color: #000;
-            border-bottom: 1px solid #ddd;
+            padding: 12px 14px;
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s ease, color 0.2s ease;
         }
+
         .sidebar a:hover {
-            background-color: #ddd;
+            background: var(--primary-light);
+            color: var(--primary);
         }
-        /* 新增样式 */
-        .coding-redundancy {
+
+        .content { display: grid; gap: 24px; }
+
+        .status-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 18px 20px;
+            background: var(--accent-light);
+            border: 1px solid #cfe7d4;
+            border-radius: 14px;
+            color: #255b2c;
+        }
+
+        .status-banner strong {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+
+        .status-banner span { font-size: 14px; }
+
+        .status-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary,
+        .btn-ghost {
             display: inline-flex;
             align-items: center;
-            vertical-align: middle;
-            margin-left: 5px; /* 调整间距 */
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 16px;
+            border-radius: 10px;
+            font: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            font-weight: 700;
+        }
+
+        .btn-primary:hover { background: var(--primary-dark); }
+
+        .btn-ghost {
+            background: #fff;
+            color: var(--text);
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+
+        .btn-ghost:hover { background: #f8fbfd; }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .summary-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+
+        .summary-card .label {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .summary-card .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        .section {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .section-head {
+            padding: 22px 24px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .section-desc {
+            margin: 10px 0 0;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .section-body { padding: 24px; }
+
+        .soft-note {
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #f8fbfd;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .soft-note strong { color: var(--text); }
+
+        .image-grid-3,
+        .image-grid-2 {
+            display: grid;
+            gap: 18px;
+        }
+
+        .image-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .image-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+        .figure-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        .figure-media {
+            background: #fff;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .figure-media img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .figure-caption { padding: 14px 16px 16px; }
+
+        .figure-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .figure-text {
+            font-size: 14px;
+            color: var(--muted);
+            margin: 0;
+        }
+
+        .panel-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 22px;
+        }
+
+        .panel {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fcfdff;
+            padding: 18px;
+        }
+
+        .panel h4 {
+            margin: 0 0 14px;
+            font-size: 17px;
+            color: var(--primary);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .form-group:last-child { margin-bottom: 0; }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .helper-text {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: -2px;
+        }
+
+        input, select, button { font: inherit; }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            min-height: 42px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(31, 78, 121, 0.1);
+        }
+
+        .coordinate-box,
+        .result-box {
+            border-radius: 12px;
+            background: #fff;
+            padding: 14px 16px;
+            font-size: 14px;
+            min-height: 56px;
+        }
+
+        .coordinate-box {
+            border: 1px dashed var(--border);
+            color: var(--muted);
+        }
+
+        .result-box {
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .subsection {
+            margin-top: 22px;
+            padding-top: 22px;
+            border-top: 1px solid var(--border);
+        }
+
+        .subsection:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .subsection-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: var(--primary-light);
+            color: var(--primary);
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .metric-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            text-align: center;
+        }
+
+        .metric-card .metric-name {
+            font-size: 14px;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1.2;
+        }
+
+        .file-note {
+            margin-top: 16px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .toast {
+            position: fixed;
+            top: 22px;
+            right: 22px;
+            background: #255b2c;
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-8px);
+            transition: all 0.25s ease;
+            font-size: 14px;
+        }
+
+        .toast.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        .figure-media {
+            background: #fff;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .figure-media img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        @media (max-width: 1200px) {
+            .page { grid-template-columns: 1fr; }
+            .sidebar { position: static; }
+            .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .image-grid-3,
+            .image-grid-2,
+            .panel-grid,
+            .metric-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .topbar h1 { font-size: 26px; }
+            .page { padding: 0 16px; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .section-head, .section-body { padding-left: 18px; padding-right: 18px; }
+            .status-banner { flex-direction: column; align-items: flex-start; }
+        }
+
+        .progress-panel {
+    display: none;
+}
+
+        .progress-outer {
+            width: 100%;
+            height: 18px;
+            background: #eaf0f6;
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .progress-inner {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 999px;
+            transition: width 0.3s ease;
+        }
+
+        #sample-information-section .image-grid-2 {
+            grid-template-columns: 7fr 3fr !important;
+            align-items: stretch;
+        }
+
+        #sample-information-section .figure-card {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #sample-information-section .figure-media {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 620px;
+            padding: 20px;
+        }
+
+        #sample-information-section .figure-media img {
+            width: 95% !important;
+            max-width: 95%;
+            max-height: 560px;
+            height: auto !important;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
+
+        #data-analysis-section .image-grid-3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        #data-analysis-section .figure-card {
+            height: 100%;
+            display: grid;
+            grid-template-rows: 520px 170px;
+        }
+
+        #data-analysis-section .figure-media {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            background: #fff;
+            overflow: hidden;
+        }
+
+        #data-analysis-section .figure-media img {
+            width: 100% !important;
+            max-width: 100%;
+            max-height: 460px;
+            height: auto !important;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
+
+        #data-analysis-section .figure-caption {
+            padding: 14px 16px 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow: hidden;
+        }
+
+        #data-analysis-section .figure-label {
+            min-height: 48px;
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        #data-analysis-section .figure-text {
+            flex: 1;
+            line-height: 1.7;
+            margin: 0;
+        }
+
+        @media (max-width: 1200px) {
+            #data-analysis-section .image-grid-3 {
+                grid-template-columns: 1fr;
+            }
+
+            #data-analysis-section .figure-card {
+                grid-template-rows: 520px 170px;
+            }
+        }
+
     </style>
 
-    <!-- 添加 MathJax 库 -->
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
-     <div class="sidebar">
-        <a href="#data-analysis-section">Data Analysis and Channel Probability Distribution Simulation</a>
-        <a href="#sample-information-section">Sample Information Retrieval Integrity</a>
-        <a href="#minimum-sequencing-coverage-depth-section">Minimum Sequencing Coverage Depth for Recovering All Information</a>
+<header class="topbar">
+    <div class="topbar-inner">
+        <h1>Quantifying Sequencing Coverage Depth</h1>
+        <p>
+            This page presents the results of data analysis, channel probability distribution fitting,
+            sample information retrieval integrity analysis, and minimum sequencing coverage depth estimation.
+        </p>
+        <div class="top-meta">
+            <div class="top-chip">System: SCDW</div>
+            <div class="top-chip">Analysis object: DNA storage channel</div>
+            <div class="top-chip">Analysis mode: theoretical calculation + figures + interactive parameters</div>
+            {% if file_uploaded %}
+            <div class="top-chip">Current file: {{ file_name }}</div>
+            {% endif %}
+        </div>
+    </div>
+</header>
+
+<div class="page">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h3>Result Navigation</h3>
+            <p>Click to jump to the corresponding analysis module.</p>
+        </div>
+        <nav>
+            <a href="#data-analysis-section">Data Analysis and Channel Probability Distribution Simulation</a>
+            <a href="#sample-information-section">Sample Information Retrieval Integrity</a>
+            <a href="#minimum-sequencing-coverage-depth-section">Minimum Sequencing Coverage Depth for Recovering All Information</a>
+            <a href="#noiseless-channel-section">Simulation Results in the Noiseless Channel</a>
+            <a href="#noisy-channel-section">Simulation Results in the Noisy Channel</a>
+        </nav>
+    </aside>
+
+    <main class="content">
+        <div class="status-banner">
+            <div>
+                <strong>Analysis completed</strong>
+                <span>The current results have been generated. You may continue to adjust parameters and refresh figures or values.</span>
+            </div>
+            <div class="status-actions">
+                <button class="btn-ghost" onclick="window.location.href='/'">Back to Home</button>
+            </div>
+        </div>
+        <div class="section progress-panel" id="progress-section">
+        <div class="section-head">
+            <h2 class="section-title">Task Progress</h2>
+            <p class="section-desc" id="progress_text">Preparing...</p>
+        </div>
+        <div class="section-body">
+            <div class="progress-outer">
+                <div class="progress-inner" id="progress_bar"></div>
+            </div>
+            <div class="helper-text" id="progress_percent" style="margin-top: 10px;">0%</div>
+        </div>
     </div>
 
-    <div class="container">
-        <h1>Quantifying Sequencing Coverage Depth</h1>
-
-        <!-- 状态消息 -->
-        <div class="status-message">
-            <h3 style="color: red;">The processing is complete!</h3>
+        {% if file_uploaded %}
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="label">Current file</div>
+                <div class="value">{{ file_name }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Noiseless-channel parameter</div>
+                <div class="value">R = {{ R }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Noisy-channel parameters</div>
+                <div class="value">R = {{ R_noisy }}, a = {{ a }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Current status</div>
+                <div class="value">Results can be updated interactively</div>
+            </div>
         </div>
 
-        <!-- 文件已上传，显示图片和参数输入 -->
-        {% if file_uploaded %}
-            <p>Sequencing file has been uploaded: {{ file_name }}</p>
-
-            <!-- Data Analysis Section -->
-            <div class="section" id="data-analysis-section">
-                <h2 class="section-title">
-                    Data Analysis and Channel Probability Distribution Simulation
-                </h2>
-                <div>
-                    <h3 class="subhighlight">This block provides:<br>✔Display the distribution of encoded strand read counts in your uploaded sequencing file. (see Fig. 1 and Fig. 2)<br>✔Simulate the channel probability distribution for your uploaded sequencing file. (see Fig. 3)</h3>
-                </div>
-                <div class="image-container">
-                    <div class="image-wrapper">
-                        <img src="{{ url_for('uploaded_file', filename='图1.png') }}" alt="图1">
-                        <span>Fig. 1</span>
-                        <p>Fig. 1 shows the number of sequencing reads for each encoded strand after PCR amplification in the sequencing file.</p>
-                    </div>
-                    <div class="image-wrapper">
-                        <img src="{{ url_for('uploaded_file', filename='图2.png') }}" alt="图2">
-                        <span>Fig. 2</span>
-                        <p>Fig. 2 shows the logarithmically transformed number of sequencing reads for each encoded strand after PCR amplification in the sequencing file. From Fig. 2, it can be roughly observed that the log-transformed read counts follow a normal distribution.</p>
-                    </div>
-                    <div class="image-wrapper">
-                        <img src="{{ url_for('uploaded_file', filename='图3.png') }}" alt="图3">
-                        <span>Fig. 3</span>
-                        <p>Fig. 3 shows the proportion of each encoded strand in the sequencing file after PCR amplification. A log-normal fitting has been applied, and the legend displays the parameter values of the fitted log-normal distribution.</p>
-                    </div>
-                </div>
+        <section class="section" id="data-analysis-section">
+            <div class="section-head">
+                <h2 class="section-title">Data Analysis and Channel Probability Distribution Simulation</h2>
+                <p class="section-desc">
+                    Statistical analysis of the uploaded sequencing file and channel probability distribution fitting based on log-transformed data.
+                </p>
             </div>
 
-            <!-- Sample Information Extraction Completeness Section -->
-            <div class="section sample-information" id="sample-information-section">
-                <h2 class="section-title">
-                    Sample Information Retrieval Integrity
-                </h2>
-                <div>
-                    <h3>Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides:<br>✔The proportion of encoded strands expected to be successfully decoded at your preset sequencing coverage depth, if you choose "Preset sequencing coverage depth".<br>✔The minimum sequencing coverage depth required to achieve your preset encoded strand decoding proportion, if you choose "Expected decoding proportion of encoded strands".</h3>
+            <div class="section-body">
+                <div class="soft-note">
+                    <strong>This module provides:</strong>
+                    the distribution of encoded-strand read counts in the uploaded sequencing file and the fitted channel probability distribution.
                 </div>
-                <div class="image-container">
-                    <div class="image-wrapper">
-                        <img src="{{ url_for('uploaded_file', filename='图4-1.png') }}" alt="图4-1" style="width: 80%; height: auto;">
-                        <span>Fig. 4</span>
-                        <p>Fig. 4 illustrates the relationship between expected decoding proportion of encoded strands and sequencing coverage depth under two different channels.</p>
-                    </div>
-                </div>
-                <div>
-                    <h4>----------------------------------------------------Parameter Settings----------------------------------------------------</h4>
-                    <form id="preset_coverage_form">
-                        <div class="form-group">
-                            <label for="mark_option">Mark Option:</label>
-                            <select name="mark_option" id="mark_option">
-                                <option value="preset_coverage" {% if mark_option == 'preset_coverage' %}selected{% endif %}>Preset sequencing coverage depth</option>
-                                <option value="expected_completeness" {% if mark_option == 'expected_completeness' %}selected{% endif %}>Expected decoding proportion of encoded strands</option>
-                            </select>
+
+                <div class="image-grid-3">
+                    <article class="figure-card">
+                        <div class="figure-media">
+                            <img src="{{ url_for('uploaded_file', filename='图1.png') }}" alt="Fig. 1">
                         </div>
-                        <div class="form-group" id="preset_coverage_group">
-                            <label for="preset_coverage">Preset sequencing coverage depth:</label>
-                            <input type="number" name="preset_coverage" id="preset_coverage" value="{{ preset_coverage }}" required step="0.5" min="0.5" max="30">
+                        <div class="figure-caption">
+                            <div class="figure-label">Fig. 1 Raw read-count distribution</div>
+                            <p class="figure-text">
+                                The number of sequencing reads for each encoded strand after PCR amplification.
+                            </p>
                         </div>
-                        <div class="form-group" id="expected_completeness_group" style="display: none;">
-                            <label for="expected_completeness">Expected decoding proportion of encoded strands:</label>
-                            <input type="number" name="expected_completeness" id="expected_completeness" value="{{ expected_completeness }}" required step="0.01" min="0" max="1">
+                    </article>
+
+                    <article class="figure-card">
+                        <div class="figure-media">
+                            <img src="{{ url_for('uploaded_file', filename='图2.png') }}" alt="Fig. 2">
                         </div>
-                        <button type="submit">Update Parameter</button>
-                    </form>
-                    <h4>----------------------------------------------------Simulation Results----------------------------------------------------</h4>
-                    <p id="coordinate_info"></p> <!-- 添加这一行来显示坐标信息 -->
+                        <div class="figure-caption">
+                            <div class="figure-label">Fig. 2 Log-transformed read-count distribution</div>
+                            <p class="figure-text">
+                                The log-transformed sequencing read counts, which can be used to observe approximate normality.
+                            </p>
+                        </div>
+                    </article>
+
+                    <article class="figure-card">
+                        <div class="figure-media">
+                            <img src="{{ url_for('uploaded_file', filename='图3.png') }}" alt="Fig. 3">
+                        </div>
+                        <div class="figure-caption">
+                            <div class="figure-label">Fig. 3 Channel probability distribution fitting</div>
+                            <p class="figure-text">
+                                The relative abundance of each encoded strand and the fitted log-normal parameters.
+                            </p>
+                        </div>
+                    </article>
                 </div>
             </div>
+        </section>
 
-            <!-- Minimum Sequencing Coverage Depth Section -->
-            <div class="section" id="minimum-sequencing-coverage-depth-section">
-                <h2 class="section-title">
-                    Minimum Sequencing Coverage Depth for Recovering All Information
-                </h2>
-                <!-- Noiseless Channel Section -->
-                <div class="subsection noiseless-channel" id="noiseless-channel-section">
-                    <h2 class="subhighlight">
-                        Simulation Results in the Noiseless Channel
-                    </h2>
-                    <div>
-                        <h3>Under the condition that a single read is sufficient to successfully recover an encoded strand, this block provides:<br>✔The expected minimum sequencing coverage depth required to successfully recover all information under the preset inverse code rate below. (see Fig. 5)<br>✔Probability of successfully recovering all information in one experiment under different sequencing coverage depth condition. (see Fig. 6)</h3>
-                    </div>
-                    <div class="image-container">
-                        <div class="image-wrapper">
-                            <img src="{{ url_for('uploaded_file', filename='图4-2.png') }}" alt="图4-2" style="width: 80%; height: auto;">
-                            <span>Fig. 5</span>
-                            <p>Fig. 5 illustrates the relationship between the expected sequencing coverage depth and the code rate  required for the successful decoding of all information.</p>
+        <section class="section" id="sample-information-section">
+            <div class="section-head">
+                <h2 class="section-title">Sample Information Retrieval Integrity</h2>
+                <p class="section-desc">
+                    Under the noiseless-channel assumption, this module analyzes either the expected decoding proportion at a preset sequencing coverage depth,
+                    or the minimum sequencing coverage depth needed to reach a preset decoding proportion.
+                </p>
+            </div>
+
+            <div class="section-body">
+                <div class="soft-note">
+                    <strong>Noiseless-channel assumption:</strong>
+                    a single read is sufficient to successfully recover an encoded strand.
+                </div>
+
+                <div class="image-grid-2">
+                    <article class="figure-card">
+                        <div class="figure-media">
+                            <img src="{{ url_for('uploaded_file', filename='图4-1.png') }}" alt="Fig. 4">
                         </div>
-                        <div class="image-wrapper">
-                            <img src="{{ url_for('uploaded_file', filename='图4-3.png') }}" alt="图4-3" style="width: 80%; height: auto;">
-                            <span>Fig. 6</span>
-                            <p>Fig. 6 shows the variance corresponding to the recovery of all information at different sequencing depths. A higher variance indicates a lower probability of successfully recovering all information in a single sequencing experiment when using the sequencing depth suggested by the expected minimum sequencing depth. Fig. 6 should be interpreted in conjunction with Fig. 5.</p>
+                        <div class="figure-caption">
+                            <div class="figure-label">Fig. 4 Expected decoding proportion vs. sequencing coverage depth</div>
+                            <p class="figure-text">
+                                The relationship between expected decoding proportion and sequencing coverage depth under two different channels.
+                            </p>
                         </div>
-                    </div>
-                    <div>
-                        <h4>----------------------------------------------------Parameter Settings----------------------------------------------------</h4>
-                        <form id="R_form">
+                    </article>
+
+                    <div class="panel">
+                        <h4>Parameter Settings and Results</h4>
+                        <form id="preset_coverage_form">
                             <div class="form-group">
-                                <label for="R" title="E.g., encode m information strands into n encoded strands, the coding redundancy is n/m;">
-                                    \[
-                                    \frac{\#encoded\ strands}{\#information\ strands} :
-                                    \]
-                                </label>
-                                <input type="number" name="R" id="R" value="{{ R }}" required step="0.1" min="1.1">
+                                <label for="mark_option">Mark Option</label>
+                                <select name="mark_option" id="mark_option">
+                                    <option value="preset_coverage" {% if mark_option == 'preset_coverage' %}selected{% endif %}>Preset sequencing coverage depth</option>
+                                    <option value="expected_completeness" {% if mark_option == 'expected_completeness' %}selected{% endif %}>Expected decoding proportion of encoded strands</option>
+                                </select>
                             </div>
-                            <button type="submit">Update Parameter</button>
+
+                            <div class="form-group" id="preset_coverage_group">
+                                <label for="preset_coverage">Preset sequencing coverage depth</label>
+                                <input type="number" name="preset_coverage" id="preset_coverage" value="{{ preset_coverage }}" required step="0.5" min="0.5" max="30">
+                            </div>
+
+                            <div class="form-group" id="expected_completeness_group" style="display: none;">
+                                <label for="expected_completeness">Expected decoding proportion of encoded strands</label>
+                                <input type="number" name="expected_completeness" id="expected_completeness" value="{{ expected_completeness }}" required step="0.01" min="0" max="1">
+                            </div>
+
+                            <button type="submit" class="btn-primary">Update Parameter</button>
                         </form>
-                        <h4>----------------------------------------------------Simulation Results----------------------------------------------------</h4>
-                        <p id="coordinate_info_noiseless"></p> <!-- 添加这一行来显示坐标信息 -->
+
+                        <div style="margin-top: 16px;">
+                            <div class="helper-text" style="margin-bottom: 8px;">Simulation results</div>
+                            <div id="coordinate_info" class="coordinate-box"></div>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </section>
 
-                <!-- Noisy Channel Section -->
-                <div class="subsection noisy-channel" id="noisy-channel-section">
-                    <h2 class="subhighlight">
-                        Simulation Results in the Noisy Channel
-                    </h2>
-                    <div>
-                        <h3>✔Under the condition that at least two reads are sufficient to successfully recover an encoded strand, this block provides upper and lower bound on the sequencing coverage depth required to recover all information.</h3>
-                    </div>
-                    <h4>----------------------------------------------------Parameter Settings----------------------------------------------------</h4>
-                    <form id="noisy_channel_form">
-                        <div class="form-group">
-                            <label for="R_noisy" title="E.g., encode m information strands into n encoded strands, the coding redundancy is n/m;">
-                                \[
-                                \frac{\#encoded\ strands}{\#information\ strands} :
-                                \]
-                            </label>
-                            <input type="number" name="R_noisy" id="R_noisy" value="{{ R_noisy }}" required step="0.1" min="1.1">
-                        </div>
-                        <div class="form-group">
-                            <label for="a" title="The minimum number of noisy copies required to decode a particular strand.">How many noisy copies of each encoded strand are needed to reconstruct it:</label>
-                            <input type="number" name="a" id="a" value="{{ a }}" required step="1" min="2"> <!-- 设置 a 的最小值为 2 -->
-                        </div>
-                        <input type="hidden" name="c" id="c" value="0.01">
-                        <button type="submit">Update Parameters</button>
-                    </form>
-                    <h4>----------------------------------------------------Simulation Results----------------------------------------------------</h4>
-                    <div>
-                        The following upper and lower bounds hold with a probability of 99.9%.
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Lower Bound</th>
-                                <th>Upper Bound</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td id="lower_bound">{{ lower_bound }}</td>
-                                <td id="upper_bound">{{ upper_bound }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    <p><strong>file:</strong> {{ file_name }}</p>
-                </div>
-
+        <section class="section" id="minimum-sequencing-coverage-depth-section">
+            <div class="section-head">
+                <h2 class="section-title">Minimum Sequencing Coverage Depth for Recovering All Information</h2>
+                <p class="section-desc">
+                    This section provides the coverage-depth results under both the noiseless and noisy channels, with interactive parameter adjustment.
+                </p>
             </div>
 
+            <div class="section-body">
+                <div class="subsection" id="noiseless-channel-section">
+                    <h3 class="subsection-title">Simulation Results in the Noiseless Channel</h3>
 
+                    <div class="soft-note">
+                        <strong>This module provides:</strong>
+                        the expected minimum sequencing coverage depth required to recover all information, and a complementary variance-related result.
+                    </div>
 
+                    <div class="image-grid-2">
+                        <article class="figure-card">
+                            <div class="figure-media">
+                                <img src="{{ url_for('uploaded_file', filename='图4-2.png') }}" alt="Fig. 5" style="width: 80%; margin: 0 auto;">
+                            </div>
+                            <div class="figure-caption">
+                                <div class="figure-label">Fig. 5 Expected coverage depth vs. code rate</div>
+                                <p class="figure-text">
+                                    The expected sequencing coverage depth required for successful decoding of all information.
+                                </p>
+                            </div>
+                        </article>
+
+                        <article class="figure-card">
+                            <div class="figure-media">
+                                <img src="{{ url_for('uploaded_file', filename='图4-3.png') }}" alt="Fig. 6" style="width: 80%; margin: 0 auto;">
+                            </div>
+                            <div class="figure-caption">
+                                <div class="figure-label">Fig. 6 Variance-related result under different sequencing depths</div>
+                                <p class="figure-text">
+                                    This figure should be interpreted together with Fig. 5 to evaluate decoding reliability.
+                                </p>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="panel-grid">
+                        <div class="panel">
+                            <h4>Parameter Settings</h4>
+                            <form id="R_form">
+                                <div class="form-group">
+                                    <label for="R">Coding redundancy parameter</label>
+                                    <div class="helper-text">
+                                        \[
+                                        \frac{\#encoded\ strands}{\#information\ strands}
+                                        \]
+                                    </div>
+                                    <input type="number" name="R" id="R" value="{{ R }}" required step="0.1" min="1.1">
+                                </div>
+                                <button type="submit" class="btn-primary">Update Parameter</button>
+                            </form>
+                        </div>
+
+                        <div class="panel">
+                            <h4>Simulation Results</h4>
+                            <div id="coordinate_info_noiseless" class="coordinate-box"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection" id="noisy-channel-section">
+                    <h3 class="subsection-title">Simulation Results in the Noisy Channel</h3>
+
+                    <div class="soft-note">
+                        <strong>This module provides:</strong>
+                        upper and lower bounds on the sequencing coverage depth required to recover all information when at least two noisy copies are needed.
+                    </div>
+
+                    <div class="panel-grid">
+                        <div class="panel">
+                            <h4>Parameter Settings</h4>
+                            <form id="noisy_channel_form">
+                                <div class="form-group">
+                                    <label for="R_noisy">Coding redundancy parameter</label>
+                                    <div class="helper-text">
+                                        \[
+                                        \frac{\#encoded\ strands}{\#information\ strands}
+                                        \]
+                                    </div>
+                                    <input type="number" name="R_noisy" id="R_noisy" value="{{ R_noisy }}" required step="0.1" min="1.1">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="a">How many noisy copies of each encoded strand are needed to reconstruct it</label>
+                                    <input type="number" name="a" id="a" value="{{ a }}" required step="1" min="2">
+                                </div>
+
+                                <input type="hidden" name="c" id="c" value="0.01">
+                                <button type="submit" class="btn-primary">Update Parameters</button>
+                            </form>
+                        </div>
+
+                        <div class="panel">
+                            <h4>Simulation Results</h4>
+                            <div class="result-box">
+                                The following upper and lower bounds hold with a probability of 99.9%.
+                            </div>
+
+                            <div class="metric-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                            <div class="metric-card">
+                                <div class="metric-name">Lower Bound</div>
+                                <div class="metric-value" id="lower_bound">{{ lower_bound }}</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-name">Center Value</div>
+                                <div class="metric-value" id="center_bound">{{ center_bound }}</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-name">Upper Bound</div>
+                                <div class="metric-value" id="upper_bound">{{ upper_bound }}</div>
+                            </div>
+                        </div>
+
+                            <div class="file-note"><strong>File:</strong> {{ file_name }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
         {% endif %}
-    </div>
+    </main>
+</div>
 
-    <script>    // 初始化文件名
+<div class="toast" id="toast">Updated successfully</div>
+
+<script>
+    function showToast(message = 'Updated successfully') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2200);
+    }
+
+    function toggleInputFields(option) {
+        const presetCoverageGroup = document.getElementById('preset_coverage_group');
+        const expectedCompletenessGroup = document.getElementById('expected_completeness_group');
+
+        if (option === 'preset_coverage') {
+            presetCoverageGroup.style.display = 'flex';
+            expectedCompletenessGroup.style.display = 'none';
+        } else if (option === 'expected_completeness') {
+            presetCoverageGroup.style.display = 'none';
+            expectedCompletenessGroup.style.display = 'flex';
+        }
+    }
+
+    function showProgress(text = 'Preparing...') {
+        document.getElementById('progress-section').style.display = 'block';
+        document.getElementById('progress_text').innerText = text;
+        document.getElementById('progress_bar').style.width = '0%';
+        document.getElementById('progress_percent').innerText = '0%';
+    }
+
+    function updateProgress(percent, text = '') {
+        document.getElementById('progress_bar').style.width = percent + '%';
+        document.getElementById('progress_percent').innerText = percent + '%';
+        if (text) {
+            document.getElementById('progress_text').innerText = text;
+        }
+    }
+
+    function hideProgress() {
+        setTimeout(() => {
+            document.getElementById('progress-section').style.display = 'none';
+        }, 800);
+    }
+
+    function pollTask(taskId, onDone) {
+        const timer = setInterval(() => {
+            fetch(`/task_status/${taskId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.state === 'running') {
+                        updateProgress(data.progress || 0, data.message || 'Running...');
+                    } else if (data.state === 'done') {
+                        updateProgress(100, data.message || 'Completed');
+                        clearInterval(timer);
+                        hideProgress();
+                        onDone(data.result || {});
+                    } else if (data.state === 'error') {
+                        clearInterval(timer);
+                        hideProgress();
+                        alert(data.message || 'Task failed');
+                    }
+                })
+                .catch(err => {
+                    clearInterval(timer);
+                    hideProgress();
+                    console.error(err);
+                    alert('Failed to query task status.');
+                });
+        }, 500);
+    }
+
     window.onload = function() {
-        // 根据 mark_option 显示相应的输入框
-        var markOption = document.getElementById('mark_option').value;
+        const markOption = document.getElementById('mark_option').value;
         toggleInputFields(markOption);
 
-        // 添加事件监听器以切换输入框
         document.getElementById('mark_option').addEventListener('change', function() {
-            var selectedOption = this.value;
-            toggleInputFields(selectedOption);
+            toggleInputFields(this.value);
         });
 
-        // AJAX 请求处理
         document.getElementById('preset_coverage_form').addEventListener('submit', function(event) {
-        event.preventDefault();
-        var formData = new FormData(this);
-        fetch('/update_preset_coverage', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                // 刷新 Sample Information Extraction Completeness Section 的图片
-                document.querySelector('#sample-information-section .image-container img').src =
-                    document.querySelector('#sample-information-section .image-container img').src.split('?')[0] + '?t=' + new Date().getTime(); // 强制刷新图片
-                // 更新坐标信息
-                document.getElementById('coordinate_info').textContent = data.coordinate_info_4_1; // 更新为 Fig.4-1 的坐标信息
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    });
-
-
-        document.getElementById('R_form').addEventListener('submit', function(event) {
-        event.preventDefault();
-        var formData = new FormData(this);
-        fetch('/update_R', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                // 刷新 Noiseless Channel Section 的图片
-                document.querySelectorAll('#noiseless-channel-section .image-container img').forEach(img => {
-                    img.src = img.src.split('?')[0] + '?t=' + new Date().getTime(); // 强制刷新图片
-                });
-                // 更新坐标信息
-                document.getElementById('coordinate_info_noiseless').textContent = data.coordinate_info_4_2; // 更新为 Fig.4-2 的坐标信息
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => console.error('Error:', error));
-    });
-
-        document.getElementById('noisy_channel_form').addEventListener('submit', function(event) {
             event.preventDefault();
             var formData = new FormData(this);
-            fetch('/calculate', {
+
+            showProgress('Starting task...');
+
+            fetch('/start_update_preset_coverage', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
-                    // 更新表格数据
-                    document.getElementById('lower_bound').textContent = data.lower_bound;
-                    document.getElementById('upper_bound').textContent = data.upper_bound;
+                    pollTask(data.task_id, function(result) {
+                        document.querySelector('#sample-information-section .figure-media img').src =
+                            document.querySelector('#sample-information-section .figure-media img').src.split('?')[0] + '?t=' + new Date().getTime();
+                        document.getElementById('coordinate_info').textContent = result.coordinate_info_4_1 || '';
+                        showToast('Updated successfully');
+                    });
                 } else {
+                    hideProgress();
                     alert(data.message);
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                hideProgress();
+                console.error('Error:', error);
+            });
+        });
+
+        document.getElementById('R_form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            var formData = new FormData(this);
+
+            showProgress('Starting task...');
+
+            fetch('/start_update_R', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    pollTask(data.task_id, function(result) {
+                        document.querySelectorAll('#noiseless-channel-section .figure-media img').forEach(img => {
+                            img.src = img.src.split('?')[0] + '?t=' + new Date().getTime();
+                        });
+                        document.getElementById('coordinate_info_noiseless').textContent = result.coordinate_info_4_2 || '';
+                        showToast('Updated successfully');
+                    });
+                } else {
+                    hideProgress();
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                hideProgress();
+                console.error('Error:', error);
+            });
+        });
+
+        document.getElementById('noisy_channel_form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            var formData = new FormData(this);
+
+            showProgress('Starting task...');
+
+            fetch('/start_calculate', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    pollTask(data.task_id, function(result) {
+                        document.getElementById('lower_bound').textContent = result.lower_bound;
+                        document.getElementById('center_bound').textContent = result.center_bound;
+                        document.getElementById('upper_bound').textContent = result.upper_bound;
+                        showToast('Updated successfully');
+                    });
+                } else {
+                    hideProgress();
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                hideProgress();
+                console.error('Error:', error);
+            });
         });
     };
-
-    // 根据 mark_option 显示相应的输入框
-    function toggleInputFields(option) {
-        var presetCoverageGroup = document.getElementById('preset_coverage_group');
-        var expectedCompletenessGroup = document.getElementById('expected_completeness_group');
-
-        if (option === 'preset_coverage') {
-            presetCoverageGroup.style.display = 'block';
-            expectedCompletenessGroup.style.display = 'none';
-        } else if (option === 'expected_completeness') {
-            presetCoverageGroup.style.display = 'none';
-            expectedCompletenessGroup.style.display = 'block';
-        }
-    }
 </script>
-
 </body>
 </html>

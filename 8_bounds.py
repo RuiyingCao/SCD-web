@@ -1,6 +1,8 @@
 ### 计算测序覆盖深度的界限 ###
 import math
 import sys
+from scipy.stats import norm
+import numpy as np
 
 # 读取用户上传的文件路径
 file_path = sys.argv[1]
@@ -19,12 +21,13 @@ sigma_t = float(sys.argv[6])
 def f(line_count):
     return math.log(math.log(math.log(line_count)))
 
-upper_bound = math.exp(-mu_t + sigma_t **2 / 2) * (math.log((R - 1) / R)+a*f(line_count)+2*(a+1))
-lower_bound = math.exp(-mu_t + sigma_t **2 / 2) * (
-    (a - 1) - math.log(2) * math.log((R - 1) / R) + (a - 1) * math.sqrt(
-        (-2 * math.log(2) / (a - 1)) * math.log((R - 1) / R)))
+z=0.5
+xi = norm.ppf(1.0 - 1/R)
+scale = np.exp(-mu_t - (sigma_t**2) * xi)
+K_L = max(a - z * np.sqrt(a), 0.0) * scale
+K_C = a * scale
+K_U = (a + z * np.sqrt(a)) * scale
 
-
-# 输出 lower_bound 和 upper_bound
-print(f"{round(lower_bound / line_count, 1)}")
-print(f"{round(upper_bound / line_count, 1)}")
+print(f"{round(K_L / line_count, 1)}")
+print(f"{round(K_C / line_count, 1)}")
+print(f"{round(K_U / line_count, 1)}")

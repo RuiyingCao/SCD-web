@@ -4,11 +4,49 @@ import subprocess
 import glob
 import numpy as np
 import time
+import uuid
+import threading
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"  # 用于加密 session，生产环境中应使用安全的密钥
 
 UPLOAD_FOLDER = "uploads"
+TASKS = {}
+TASKS_LOCK = threading.Lock()
+
+def create_task():
+    task_id = uuid.uuid4().hex
+    with TASKS_LOCK:
+        TASKS[task_id] = {
+            "state": "running",
+            "progress": 0,
+            "message": "Preparing...",
+            "result": None
+        }
+    return task_id
+
+def set_task(task_id, *, state=None, progress=None, message=None, result=None):
+    with TASKS_LOCK:
+        if task_id not in TASKS:
+            return
+        if state is not None:
+            TASKS[task_id]["state"] = state
+        if progress is not None:
+            TASKS[task_id]["progress"] = progress
+        if message is not None:
+            TASKS[task_id]["message"] = message
+        if result is not None:
+            TASKS[task_id]["result"] = result
+
+def parse_nonempty_lines(text):
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+@app.route("/task_status/<task_id>", methods=["GET"])
+def task_status(task_id):
+    task = TASKS.get(task_id)
+    if not task:
+        return jsonify({"state": "error", "message": "Task not found"}), 404
+    return jsonify(task)
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -35,25 +73,25 @@ def index():
                 try:
                     R = float(R)
                     if R < 1.1:
-                        return "参数 R 的最小值为 1.1！", 400
+                        return "The minimum value of parameter R is 1.1！", 400
                 except ValueError:
-                    return "参数 R 必须是数字！", 400
+                    return "The parameter R must be a numerical value！", 400
 
                 try:
                     preset_coverage = float(preset_coverage)
                     if preset_coverage < 0.5 or preset_coverage > 30:
-                        return "参数 Preset sequencing coverage depth 必须在 0.5 到 10 之间！"
+                        return "The parameter Preset sequencing coverage depth must be between 0.5 and 10！"
                     if preset_coverage % 0.5 != 0:
-                        return "参数 Preset sequencing coverage depth 必须是 0.5 的倍数！"
+                        return "The parameter Preset sequencing coverage depth must be a multiple of 0.5！"
                 except ValueError:
-                    return "参数 Preset sequencing coverage depth 必须是数字！", 400
+                    return "The parameter Preset sequencing coverage depth must be a numerical value！", 400
 
                 try:
                     expected_completeness = float(expected_completeness)
                     if expected_completeness < 0 or expected_completeness > 1:
-                        return "参数 Expected completeness of sample information extraction 必须在 0 到 1 之间！"
+                        return "The parameter Expected completeness of sample information extraction must be between 0 and 1！"
                 except ValueError:
-                    return "参数 Expected completeness of sample information extraction 必须是数字！", 400
+                    return "The parameter Expected completeness of sample information extraction must be a numerical value！", 400
 
                 for old_image in glob.glob(os.path.join(UPLOAD_FOLDER, "图*.png")):
                     os.remove(old_image)
@@ -104,7 +142,7 @@ def index():
                                 encoding='utf-8'
                             )
                     except subprocess.CalledProcessError as e:
-                        return f"运行 {script} 失败: {e.stderr}", 500
+                        return f"fail to run {script}: {e.stderr}", 500
 
                 # 设置默认值
                 session["R_noisy"] = 2
@@ -122,13 +160,15 @@ def index():
                         cwd=os.getcwd(),
                         encoding='utf-8'
                     )
-                    lower_bound, upper_bound = map(float, result.stdout.strip().split('\n'))
+                    lines = result.stdout.strip().split('\n')
+                    lower_bound, center_bound, upper_bound = map(float, lines[:3])
                     print(f"5_bounds.py output: {result.stdout}")  # 调试信息
                 except subprocess.CalledProcessError as e:
-                    return f"运行 5_bounds.py 失败: {e.stderr}", 500
+                    return f"fail to run 5_bounds.py: {e.stderr}", 500
 
                 session["lower_bound"] = lower_bound
                 session["upper_bound"] = upper_bound
+                session["center_bound"] = center_bound
 
                 return redirect(url_for("result"))
 
@@ -150,7 +190,7 @@ def index():
                         if S:
                             S = int(S)
                     except ValueError:
-                        return "参数必须是数字！", 400
+                        return "The parameter must be a number！", 400
                     for old_image in glob.glob(os.path.join(UPLOAD_FOLDER, "图*.png")):
                         os.remove(old_image)
                     pcr_efficiency_file_name = pcr_efficiency_file.filename
@@ -178,10 +218,10 @@ def index():
                             )
                             print(f"6.1.1_generate_ci.py output: {result.stdout}")  # 调试信息
                         except subprocess.CalledProcessError as e:
-                            return f"运行 6.1.1_generate_ci.py 失败: {e.stderr}", 500
+                            return f"fail to run 6.1.1_generate_ci.py: {e.stderr}", 500
                     elif option == "total_sequences":
                         if not S:
-                            return "参数 S 必须填写！", 400
+                            return "The parameter S must be filled in！", 400
                         # 调用 6.1.2_generate_ci(整体).py
                         try:
                             result = subprocess.run(
@@ -195,7 +235,7 @@ def index():
                             )
                             print(f"6.1.2_generate_ci(整体).py output: {result.stdout}")  # 调试信息
                         except subprocess.CalledProcessError as e:
-                            return f"运行 6.1.2_generate_ci(整体).py 失败: {e.stderr}", 500
+                            return f"fail to run 6.1.2_generate_ci(整体).py: {e.stderr}", 500
 
                     # 检查生成的 synthesisnum.txt 行数
                     try:
@@ -204,11 +244,11 @@ def index():
                         with open(pcr_efficiency_file_path, 'r') as f:
                             pcr_efficiency_lines = sum(1 for line in f)
                         print(
-                            f"synthesisnum.txt 行数: {synthesisnum_lines}, PCR_efficiency.txt 行数: {pcr_efficiency_lines}")
+                            f"synthesisnum.txt lines: {synthesisnum_lines}, PCR_efficiency.txt lines: {pcr_efficiency_lines}")
                         if synthesisnum_lines != pcr_efficiency_lines:
                             return f"生成的 synthesisnum.txt 行数 ({synthesisnum_lines}) 与 PCR_efficiency.txt 行数 ({pcr_efficiency_lines}) 不一致！", 500
                     except Exception as e:
-                        return f"读取文件行数时出错: {str(e)}", 500
+                        return f"An error occurred while reading the number of lines in the file: {str(e)}", 500
 
                     # 运行分析脚本
                     if 'synthesisnum_file_path' in locals() and synthesisnum_file_path:
@@ -233,7 +273,7 @@ def index():
                             mu_t, sigma_t = map(float, result.stdout.strip().split('\n'))
                             print(f"7_analysis.py output: {result.stdout}")  # 调试信息
                         except subprocess.CalledProcessError as e:
-                            return f"运行 7_analysis.py 失败: {e.stderr}", 500
+                            return f"fail to run 7_analysis.py: {e.stderr}", 500
                     else:
                         return "生成的 synthesisnum.txt 文件路径未定义！", 500
 
@@ -263,18 +303,18 @@ def index():
                             cwd=os.getcwd(),
                             encoding='utf-8'
                         )
-                        lower_bound, upper_bound = map(float, result.stdout.strip().split('\n'))
+                        lines = result.stdout.strip().split('\n')
+                        lower_bound, center_bound, upper_bound = map(float, lines[:3])
                         print(f"8_bounds.py output: {result.stdout}")  # 调试信息
                     except subprocess.CalledProcessError as e:
-                        return f"运行 8_bounds.py 失败: {e.stderr}", 500
+                        return f"fail to run 8_bounds.py: {e.stderr}", 500
 
                     session["lower_bound"] = lower_bound
                     session["upper_bound"] = upper_bound
+                    session["center_bound"] = center_bound
                     # 保存 file_path 到 session
                     session["file_path"] = synthesisnum_file_path
                     return redirect(url_for("result2"))
-                else:
-                    return "未上传 PCR efficiency 文件！", 400
 
             elif file_type == "simulate":
                 n = request.form.get("n")
@@ -418,17 +458,18 @@ def index():
                         cwd=os.getcwd(),
                         encoding='utf-8'
                     )
-                    lower_bound, upper_bound = map(float, result.stdout.strip().split('\n'))
+                    lines = result.stdout.strip().split('\n')
+                    lower_bound, center_bound, upper_bound = map(float, lines[:3])
                     print(f"8_bounds.py output: {result.stdout}")  # 调试信息
                 except subprocess.CalledProcessError as e:
                     return f"运行 8_bounds.py 失败: {e.stderr}", 500
 
                 session["lower_bound"] = lower_bound
                 session["upper_bound"] = upper_bound
+                session["center_bound"] = center_bound
 
                 # 保存 file_path 到 session
                 session["file_path"] = synthesisnum_file_path
-                session["pcr_efficiency_file_path"] = pcr_efficiency_file_path
 
                 return redirect(url_for("result3"))
 
@@ -451,6 +492,7 @@ def result():
     file_path = session.get("file_path", "")
     lower_bound = session.get("lower_bound", None)
     upper_bound = session.get("upper_bound", None)
+    center_bound = session.get("center_bound", None)
     R = session.get("R", 2)
     c = session.get("c", 0.01)
     a = session.get("a", 2)
@@ -465,6 +507,7 @@ def result():
         file_name=file_name,
         lower_bound=lower_bound,
         upper_bound=upper_bound,
+        center_bound=center_bound,
         R=R,
         c=c,
         a=a,
@@ -480,6 +523,7 @@ def result2():
     file_name = session.get("file_name", "")
     lower_bound = session.get("lower_bound", None)
     upper_bound = session.get("upper_bound", None)
+    center_bound = session.get("center_bound", None)
     R = session.get("R", 2)
     c = session.get("c", 0.01)
     a = session.get("a", 2)
@@ -493,6 +537,7 @@ def result2():
         file_uploaded=file_name is not None,
         file_name=file_name,
         lower_bound=lower_bound,
+        center_bound=center_bound,
         upper_bound=upper_bound,
         R=R,
         c=c,
@@ -508,11 +553,13 @@ def result2():
 def result3():
     lower_bound = session.get("lower_bound", None)
     upper_bound = session.get("upper_bound", None)
+    center_bound = session.get("center_bound", None)
 
     return render_template(
         "result3.html",
         lower_bound=lower_bound,
-        upper_bound=upper_bound
+        upper_bound=upper_bound,
+        center_bound=center_bound
     )
 
 
@@ -576,7 +623,7 @@ def update_preset_coverage():
     except subprocess.CalledProcessError as e:
         return jsonify({"success": False, "message": f"运行 4_population dist.py 失败: {e.stderr}"}), 500
 
-    return jsonify({"success": True, "message": "更新成功！", "coordinate_info_4_1": coordinate_info_4_1,
+    return jsonify({"success": True, "message": "Update successfully！", "coordinate_info_4_1": coordinate_info_4_1,
                     "coordinate_info_4_2": coordinate_info_4_2})  # 返回两个坐标信息
 
 
@@ -640,7 +687,7 @@ def update_R():
         return jsonify({"success": False, "message": f"运行 4_population dist.py 失败: {e.stderr}"}), 500
 
     return jsonify(
-        {"success": True, "message": "更新成功！", "coordinate_info_4_2": coordinate_info_4_2})  # 只返回 Fig.4-2 的坐标信息
+        {"success": True, "message": "Update Successfully！", "coordinate_info_4_2": coordinate_info_4_2})  # 只返回 Fig.4-2 的坐标信息
 
 
 @app.route("/calculate", methods=["POST"])
@@ -693,15 +740,17 @@ def calculate():
             cwd=os.getcwd(),
             encoding='utf-8'
         )
-        lower_bound, upper_bound = map(float, result.stdout.strip().split('\n'))
+        lines = result.stdout.strip().split('\n')
+        lower_bound, center_bound, upper_bound = map(float, lines[:3])
     except subprocess.CalledProcessError as e:
         return jsonify({"success": False, "message": f"运行 5_bounds.py 失败: {e.stderr}"}), 500
 
     # 保存上下界到 session
     session["lower_bound"] = lower_bound
     session["upper_bound"] = upper_bound
+    session["center_bound"] = center_bound
 
-    return jsonify({"success": True, "message": "更新成功！", "lower_bound": lower_bound, "upper_bound": upper_bound})
+    return jsonify({"success": True, "message": "Update Successfully！", "lower_bound": lower_bound, "center_bound": center_bound, "upper_bound": upper_bound})
 
 
 import importlib.util
@@ -860,7 +909,8 @@ def update_bounds_parameters():
             cwd=os.getcwd(),
             encoding='utf-8'
         )
-        lower_bound, upper_bound = map(float, result.stdout.strip().split('\n'))
+        lines = result.stdout.strip().split('\n')
+        lower_bound, center_bound, upper_bound = map(float, lines[:3])
     except subprocess.CalledProcessError as e:
         logging.error(f"运行 8_bounds.py 失败: {e.stderr}")
         return jsonify({"success": False, "message": f"运行 8_bounds.py 失败: {e.stderr}"}), 500
@@ -868,9 +918,11 @@ def update_bounds_parameters():
     # 保存上下界到 session
     session["lower_bound"] = lower_bound
     session["upper_bound"] = upper_bound
+    session["center_bound"] = center_bound
 
-    return jsonify({"success": True, "message": "更新成功！", "lower_bound": lower_bound, "upper_bound": upper_bound})
-
+    return jsonify(
+        {"success": True, "message": "Update Successfully！", "lower_bound": lower_bound, "center_bound": center_bound,
+         "upper_bound": upper_bound})
 
 @app.route("/update_figure1", methods=["POST"])
 def update_figure1():
@@ -1017,7 +1069,8 @@ def update_noisy_channel():
             cwd=os.getcwd(),
             encoding='utf-8'
         )
-        lower_bound, upper_bound = map(float, result.stdout.strip().split('\n'))
+        lines = result.stdout.strip().split('\n')
+        lower_bound, center_bound, upper_bound = map(float, lines[:3])
     except subprocess.CalledProcessError as e:
         logging.error(f"运行 8_bounds.py 失败: {e.stderr}")
         return jsonify({"success": False, "message": f"运行 8_bounds.py 失败: {e.stderr}"}), 500
@@ -1025,9 +1078,569 @@ def update_noisy_channel():
     # 保存上下界到 session
     session["lower_bound"] = lower_bound
     session["upper_bound"] = upper_bound
+    session["center_bound"] = center_bound
 
-    return jsonify({"success": True, "message": "更新成功！", "lower_bound": lower_bound, "upper_bound": upper_bound})
+    return jsonify(
+        {"success": True, "message": "Update Successfully！", "lower_bound": lower_bound, "center_bound": center_bound,
+         "upper_bound": upper_bound})
 
+def worker_update_preset_coverage(task_id, file_path, R, preset_coverage, expected_completeness, mark_option):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        for old_image in glob.glob(os.path.join(UPLOAD_FOLDER, "图4-1.png")):
+            os.remove(old_image)
+
+        set_task(task_id, progress=35, message="Running 4_population dist.py ...")
+        result = subprocess.run(
+            [
+                "python",
+                "4_population dist.py",
+                file_path,
+                str(R),
+                str(preset_coverage),
+                str(expected_completeness),
+                mark_option
+            ],
+            check=True,
+            cwd=os.getcwd(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8"
+        )
+
+        set_task(task_id, progress=85, message="Parsing outputs...")
+        lines = parse_nonempty_lines(result.stdout)
+        coordinate_info_4_1 = lines[0] if len(lines) > 0 else ""
+        coordinate_info_4_2 = lines[1] if len(lines) > 1 else ""
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": "Update successfully!",
+                "coordinate_info_4_1": coordinate_info_4_1,
+                "coordinate_info_4_2": coordinate_info_4_2
+            }
+        )
+    except subprocess.CalledProcessError as e:
+        set_task(task_id, state="error", progress=100, message=f"fail to run 4_population dist.py: {e.stderr}")
+
+
+def worker_update_R(task_id, file_path, R, preset_coverage, expected_completeness, mark_option):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        for old_image in glob.glob(os.path.join(UPLOAD_FOLDER, "图4-2.png")):
+            os.remove(old_image)
+
+        set_task(task_id, progress=35, message="Running 4_population dist.py ...")
+        result = subprocess.run(
+            [
+                "python",
+                "4_population dist.py",
+                file_path,
+                str(R),
+                str(preset_coverage),
+                str(expected_completeness),
+                mark_option
+            ],
+            check=True,
+            cwd=os.getcwd(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8"
+        )
+
+        set_task(task_id, progress=85, message="Parsing outputs...")
+        lines = parse_nonempty_lines(result.stdout)
+        coordinate_info_4_2 = lines[1] if len(lines) > 1 else ""
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": "Update successfully!",
+                "coordinate_info_4_2": coordinate_info_4_2
+            }
+        )
+    except subprocess.CalledProcessError as e:
+        set_task(task_id, state="error", progress=100, message=f"fail to run 4_population dist.py: {e.stderr}")
+
+
+def worker_calculate(task_id, file_path, R_noisy, c, a):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        for old_image in glob.glob(os.path.join(UPLOAD_FOLDER, "图*.png")):
+            os.remove(old_image)
+
+        set_task(task_id, progress=45, message="Running 5_bounds.py ...")
+        result = subprocess.run(
+            ["python", "5_bounds.py", file_path, str(R_noisy), str(c), str(a)],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=os.getcwd(),
+            encoding="utf-8"
+        )
+
+        set_task(task_id, progress=85, message="Parsing outputs...")
+        lines = parse_nonempty_lines(result.stdout)
+        lower_bound, center_bound, upper_bound = map(float, lines[:3])
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": "Update successfully!",
+                "lower_bound": lower_bound,
+                "center_bound": center_bound,
+                "upper_bound": upper_bound
+            }
+        )
+    except subprocess.CalledProcessError as e:
+        set_task(task_id, state="error", progress=100, message=f"fail to run 5_bounds.py: {e.stderr}")
+
+
+def worker_update_parameter(task_id, file_path, pcr_efficiency_file_path, parameter_type, parameter_value, coding_redundancy, t):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        set_task(task_id, progress=40, message="Running 7_analysis.py ...")
+
+        if parameter_type == "preset_coverage":
+            Thm1, Thm2, mu_t, sigma_t, x_val = module.analyze_and_plot(
+                file_path,
+                pcr_efficiency_file_path,
+                preset_coverage=parameter_value,
+                coding_redundancy=coding_redundancy,
+                t=t
+            )
+            message = f"Expected decoding proportion of encoded strands: {np.interp(parameter_value, np.linspace(0.5, 30, 60), Thm1):.3f}"
+            preset_coverage = parameter_value
+            expected_proportion = None
+        elif parameter_type == "expected_proportion":
+            Thm1, Thm2, mu_t, sigma_t, x_val = module.analyze_and_plot(
+                file_path,
+                pcr_efficiency_file_path,
+                expected_proportion=parameter_value,
+                coding_redundancy=coding_redundancy,
+                t=t
+            )
+            x_val = np.interp(parameter_value, Thm1, np.linspace(0.5, 30, 60))
+            message = f"Preset coverage depth: {x_val:.2f}"
+            preset_coverage = x_val
+            expected_proportion = parameter_value
+        else:
+            raise ValueError("Invalid parameter type")
+
+        set_task(task_id, progress=85, message="Generating figure...")
+        image_url = f"/uploads/图7-1.png?t={int(time.time())}"
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": message,
+                "preset_coverage": preset_coverage,
+                "expected_proportion": expected_proportion,
+                "image_url": image_url
+            }
+        )
+    except Exception as e:
+        logging.error(f"worker_update_parameter error: {str(e)}")
+        set_task(task_id, state="error", progress=100, message=str(e))
+
+
+def worker_update_coding_redundancy(task_id, file_path, pcr_efficiency_file_path, coding_redundancy, t):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        set_task(task_id, progress=40, message="Running 7_analysis.py ...")
+
+        Thm1, Thm2, mu_t, sigma_t, x_val = module.analyze_and_plot(
+            file_path,
+            pcr_efficiency_file_path,
+            coding_redundancy=coding_redundancy,
+            t=t
+        )
+        message = f"Expected coverage depth: {x_val:.2f}"
+
+        set_task(task_id, progress=85, message="Generating figure...")
+        image_url = f"/uploads/图7-2.png?t={int(time.time())}"
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": message,
+                "x_val": x_val,
+                "image_url": image_url
+            }
+        )
+    except Exception as e:
+        logging.error(f"worker_update_coding_redundancy error: {str(e)}")
+        set_task(task_id, state="error", progress=100, message=str(e))
+
+
+def worker_update_bounds_parameters(task_id, file_path, R_noisy, c, a, mu_t, sigma_t):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        for old_image in glob.glob(os.path.join(UPLOAD_FOLDER, "图*.png")):
+            os.remove(old_image)
+
+        set_task(task_id, progress=45, message="Running 8_bounds.py ...")
+        result = subprocess.run(
+            [
+                "python",
+                "8_bounds.py",
+                file_path,
+                str(R_noisy),
+                str(c),
+                str(a),
+                str(mu_t),
+                str(sigma_t)
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=os.getcwd(),
+            encoding="utf-8"
+        )
+
+        set_task(task_id, progress=85, message="Parsing outputs...")
+        lines = parse_nonempty_lines(result.stdout)
+        lower_bound, center_bound, upper_bound = map(float, lines[:3])
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": "Update successfully!",
+                "lower_bound": lower_bound,
+                "center_bound": center_bound,
+                "upper_bound": upper_bound
+            }
+        )
+    except subprocess.CalledProcessError as e:
+        logging.error(f"worker_update_bounds_parameters error: {e.stderr}")
+        set_task(task_id, state="error", progress=100, message=e.stderr)
+
+
+def worker_update_figure1(task_id, file_path, pcr_efficiency_file_path, choice, value, t):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        set_task(task_id, progress=40, message="Running 7_analysis.py ...")
+
+        if choice == "preset_coverage":
+            Thm1, Thm2, mu_t, sigma_t, x_val = module.analyze_and_plot(
+                file_path,
+                pcr_efficiency_file_path,
+                preset_coverage=value,
+                coding_redundancy=None,
+                t=t
+            )
+            message = f"Expected decoding proportion of encoded strands: {np.interp(value, np.linspace(0.5, 30, 60), Thm1):.3f}"
+            preset_coverage = value
+            expected_proportion = None
+        elif choice == "expected_proportion":
+            Thm1, Thm2, mu_t, sigma_t, x_val = module.analyze_and_plot(
+                file_path,
+                pcr_efficiency_file_path,
+                expected_proportion=value,
+                coding_redundancy=None,
+                t=t
+            )
+            x_val = np.interp(value, Thm1, np.linspace(0.5, 30, 60))
+            message = f"Preset coverage depth: {x_val:.2f}"
+            preset_coverage = x_val
+            expected_proportion = value
+        else:
+            raise ValueError("Invalid parameter type")
+
+        set_task(task_id, progress=85, message="Generating figure...")
+        image_url = f"/uploads/图7-1.png?t={int(time.time())}"
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": message,
+                "preset_coverage": preset_coverage,
+                "expected_proportion": expected_proportion,
+                "image_url": image_url
+            }
+        )
+    except Exception as e:
+        logging.error(f"worker_update_figure1 error: {str(e)}")
+        set_task(task_id, state="error", progress=100, message=str(e))
+
+
+def worker_update_figure2(task_id, file_path, pcr_efficiency_file_path, coding_redundancy, t):
+    try:
+        set_task(task_id, progress=10, message="Preparing parameters...")
+        set_task(task_id, progress=40, message="Running 7_analysis.py ...")
+
+        Thm1, Thm2, mu_t, sigma_t, x_val = module.analyze_and_plot(
+            file_path,
+            pcr_efficiency_file_path,
+            coding_redundancy=coding_redundancy,
+            t=t
+        )
+        message = f"Expected coverage depth: {x_val:.2f}"
+
+        set_task(task_id, progress=85, message="Generating figure...")
+        image_url = f"/uploads/图7-2.png?t={int(time.time())}"
+
+        set_task(
+            task_id,
+            state="done",
+            progress=100,
+            message="Completed",
+            result={
+                "message": message,
+                "x_val": x_val,
+                "image_url": image_url
+            }
+        )
+    except Exception as e:
+        logging.error(f"worker_update_figure2 error: {str(e)}")
+        set_task(task_id, state="error", progress=100, message=str(e))
+
+@app.route("/start_update_preset_coverage", methods=["POST"])
+def start_update_preset_coverage():
+    file_path = session.get("file_path")
+    if not file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    preset_coverage = request.form.get("preset_coverage", session.get("preset_coverage", 5))
+    expected_completeness = request.form.get("expected_completeness", session.get("expected_completeness", 0.5))
+    mark_option = request.form.get("mark_option", session.get("mark_option", "preset_coverage"))
+
+    try:
+        preset_coverage = float(preset_coverage)
+        expected_completeness = float(expected_completeness)
+    except ValueError:
+        return jsonify({"success": False, "message": "Parameters must be numeric!"}), 400
+
+    session["preset_coverage"] = preset_coverage
+    session["expected_completeness"] = expected_completeness
+    session["mark_option"] = mark_option
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_update_preset_coverage,
+        args=(task_id, file_path, session.get("R"), preset_coverage, expected_completeness, mark_option),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/start_update_R", methods=["POST"])
+def start_update_R():
+    file_path = session.get("file_path")
+    if not file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    R = request.form.get("R", session.get("R", 2))
+    try:
+        R = float(R)
+    except ValueError:
+        return jsonify({"success": False, "message": "R must be numeric!"}), 400
+
+    session["R"] = R
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_update_R,
+        args=(
+            task_id,
+            file_path,
+            R,
+            session.get("preset_coverage", 5),
+            session.get("expected_completeness", 0.5),
+            session.get("mark_option", "preset_coverage")
+        ),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/start_calculate", methods=["POST"])
+def start_calculate():
+    file_path = session.get("file_path")
+    if not file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    R_noisy = request.form.get("R_noisy", session.get("R_noisy", 2))
+    a = request.form.get("a", session.get("a", 2))
+    c = request.form.get("c", session.get("c", 0.01))
+
+    try:
+        R_noisy = float(R_noisy)
+        a = int(a)
+        c = float(c)
+    except ValueError:
+        return jsonify({"success": False, "message": "Parameters must be numeric!"}), 400
+
+    session["R_noisy"] = R_noisy
+    session["a"] = a
+    session["c"] = c
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_calculate,
+        args=(task_id, file_path, R_noisy, c, a),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/start_update_parameter", methods=["POST"])
+def start_update_parameter():
+    file_path = session.get("file_path")
+    pcr_efficiency_file_path = session.get("pcr_efficiency_file_path")
+    if not file_path or not pcr_efficiency_file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    parameter_type = request.json.get("parameter_type")
+    parameter_value = request.json.get("parameter_value")
+    coding_redundancy = request.json.get("coding_redundancy")
+
+    try:
+        parameter_value = float(parameter_value)
+    except ValueError:
+        return jsonify({"success": False, "message": "Parameters must be numeric!"}), 400
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_update_parameter,
+        args=(task_id, file_path, pcr_efficiency_file_path, parameter_type, parameter_value, coding_redundancy, session.get("t")),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/start_update_coding_redundancy", methods=["POST"])
+def start_update_coding_redundancy():
+    file_path = session.get("file_path")
+    pcr_efficiency_file_path = session.get("pcr_efficiency_file_path")
+    if not file_path or not pcr_efficiency_file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    coding_redundancy = request.json.get("coding_redundancy")
+    try:
+        coding_redundancy = float(coding_redundancy)
+    except ValueError:
+        return jsonify({"success": False, "message": "Coding redundancy must be numeric!"}), 400
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_update_coding_redundancy,
+        args=(task_id, file_path, pcr_efficiency_file_path, coding_redundancy, session.get("t")),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/start_update_bounds_parameters", methods=["POST"])
+def start_update_bounds_parameters():
+    file_path = session.get("file_path")
+    if not file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    R_noisy = request.json.get("R_noisy")
+    a = request.json.get("a")
+
+    try:
+        R_noisy = float(R_noisy)
+        a = int(a)
+    except ValueError:
+        return jsonify({"success": False, "message": "Parameters must be numeric!"}), 400
+
+    session["R_noisy"] = R_noisy
+    session["a"] = a
+
+    mu_t = session.get("mu_t")
+    sigma_t = session.get("sigma_t")
+    c = session.get("c", 0.01)
+
+    if mu_t is None or sigma_t is None:
+        return jsonify({"success": False, "message": "Missing mu_t or sigma_t!"}), 400
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_update_bounds_parameters,
+        args=(task_id, file_path, R_noisy, c, a, mu_t, sigma_t),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/start_update_figure1", methods=["POST"])
+def start_update_figure1():
+    file_path = session.get("file_path")
+    pcr_efficiency_file_path = session.get("pcr_efficiency_file_path")
+    if not file_path or not pcr_efficiency_file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    choice = request.json.get("choice")
+    value = request.json.get("value")
+
+    try:
+        value = float(value)
+    except ValueError:
+        return jsonify({"success": False, "message": "Parameters must be numeric!"}), 400
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_update_figure1,
+        args=(task_id, file_path, pcr_efficiency_file_path, choice, value, session.get("t")),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/start_update_figure2", methods=["POST"])
+def start_update_figure2():
+    file_path = session.get("file_path")
+    pcr_efficiency_file_path = session.get("pcr_efficiency_file_path")
+    if not file_path or not pcr_efficiency_file_path:
+        return jsonify({"success": False, "message": "No uploaded file!"}), 400
+
+    coding_redundancy = request.json.get("coding_redundancy")
+    try:
+        coding_redundancy = float(coding_redundancy)
+    except ValueError:
+        return jsonify({"success": False, "message": "Coding redundancy must be numeric!"}), 400
+
+    task_id = create_task()
+    threading.Thread(
+        target=worker_update_figure2,
+        args=(task_id, file_path, pcr_efficiency_file_path, coding_redundancy, session.get("t")),
+        daemon=True
+    ).start()
+
+    return jsonify({"success": True, "task_id": task_id})
 
 if __name__ == "__main__":
     app.run(debug=True)

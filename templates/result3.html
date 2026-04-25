@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quantifying Sequencing Coverage Depth</title>
+    <style>
+        :root {
+            --primary: #1f4e79;
+            --primary-dark: #173a5a;
+            --primary-light: #eaf2f8;
+            --accent: #3a7d44;
+            --accent-light: #eef7f0;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --border: #d9e2ec;
+            --text: #243447;
+            --muted: #6b7c93;
+            --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+            --radius: 16px;
+        }
+
+        * { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", Arial, sans-serif;
+            line-height: 1.7;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        img {
+            max-width: 100%;
+            display: block;
+        }
+
+        .topbar {
+            background:
+                linear-gradient(135deg, rgba(31, 78, 121, 0.96), rgba(23, 58, 90, 0.96)),
+                linear-gradient(180deg, #1f4e79, #173a5a);
+            color: #fff;
+            padding: 28px 24px 34px;
+        }
+
+        .topbar-inner {
+            max-width: 1440px;
+            margin: 0 auto;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+
+        .topbar p {
+            margin: 12px 0 0;
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.88);
+            max-width: 980px;
+        }
+
+        .top-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .top-chip {
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            font-size: 13px;
+        }
+
+        .page {
+            max-width: 1440px;
+            margin: -18px auto 40px;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .sidebar {
+            position: sticky;
+            top: 20px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 18px 18px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-header h3 {
+            margin: 0;
+            font-size: 17px;
+            color: var(--primary);
+        }
+
+        .sidebar-header p {
+            margin: 8px 0 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .sidebar nav {
+            padding: 10px;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 12px 14px;
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .sidebar a:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .content {
+            display: grid;
+            gap: 24px;
+        }
+
+        .status-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            padding: 18px 20px;
+            background: var(--accent-light);
+            border: 1px solid #cfe7d4;
+            border-radius: 14px;
+            color: #255b2c;
+        }
+
+        .status-banner strong {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+
+        .status-banner span {
+            font-size: 14px;
+        }
+
+        .status-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary,
+        .btn-ghost {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 16px;
+            border-radius: 10px;
+            font: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            font-weight: 700;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-ghost {
+            background: #fff;
+            color: var(--text);
+            border: 1px solid var(--border);
+            font-weight: 600;
+        }
+
+        .btn-ghost:hover {
+            background: #f8fbfd;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .summary-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+
+        .summary-card .label {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .summary-card .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-word;
+        }
+
+        .section {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .section-head {
+            padding: 22px 24px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .section-desc {
+            margin: 10px 0 0;
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        .section-body {
+            padding: 24px;
+        }
+
+        .soft-note {
+            margin-bottom: 18px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            background: #f8fbfd;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .soft-note strong {
+            color: var(--text);
+        }
+
+        .image-grid-2,
+        .panel-grid,
+        .metric-grid {
+            display: grid;
+            gap: 18px;
+        }
+
+        .image-grid-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .panel-grid {
+            grid-template-columns: 1fr 1fr;
+            margin-top: 22px;
+        }
+
+        .metric-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: 18px;
+        }
+
+        .figure-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        .figure-media {
+            background: #fff;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .figure-media img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .figure-caption {
+            padding: 14px 16px 16px;
+        }
+
+        .figure-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .figure-text {
+            font-size: 14px;
+            color: var(--muted);
+            margin: 0;
+        }
+
+        .panel {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: #fcfdff;
+            padding: 18px;
+        }
+
+        .panel h4 {
+            margin: 0 0 14px;
+            font-size: 17px;
+            color: var(--primary);
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .helper-text {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: -2px;
+        }
+
+        input, select, button {
+            font: inherit;
+        }
+
+        input[type="number"],
+        select {
+            width: 100%;
+            min-height: 42px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(31, 78, 121, 0.1);
+        }
+
+        .coordinate-box,
+        .result-box {
+            border-radius: 12px;
+            background: #fff;
+            padding: 14px 16px;
+            min-height: 56px;
+            font-size: 14px;
+        }
+
+        .coordinate-box {
+            border: 1px dashed var(--border);
+            color: var(--muted);
+        }
+
+        .result-box {
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .subsection {
+            margin-top: 22px;
+            padding-top: 22px;
+            border-top: 1px solid var(--border);
+        }
+
+        .subsection:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .subsection-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: var(--primary-light);
+            color: var(--primary);
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .metric-card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            text-align: center;
+        }
+
+        .metric-card .metric-name {
+            font-size: 14px;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1.2;
+        }
+
+        .toast {
+            position: fixed;
+            top: 22px;
+            right: 22px;
+            background: #255b2c;
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-8px);
+            transition: all 0.25s ease;
+            font-size: 14px;
+        }
+
+        .toast.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+
+        @media (max-width: 1200px) {
+            #sample-information-section .image-grid-2,
+            #data-analysis-section .image-grid-2,
+            #sample-info .image-grid-2 {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .topbar h1 { font-size: 26px; }
+            .page { padding: 0 16px; }
+            .summary-grid { grid-template-columns: 1fr; }
+            .section-head, .section-body { padding-left: 18px; padding-right: 18px; }
+            .status-banner { flex-direction: column; align-items: flex-start; }
+        }
+
+        .progress-panel {
+            display: none;
+        }
+
+        .progress-outer {
+            width: 100%;
+            height: 18px;
+            background: #eaf0f6;
+            border-radius: 999px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .figure-media {
+            background: #fff;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+        }
+
+        .figure-media img {
+            width: 70%;
+            height: auto;
+            max-height: 500px;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        #sample-info .image-grid-2 {
+            grid-template-columns: 7fr 3fr !important;
+            align-items: stretch;
+        }
+
+        #sample-info .figure-card {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #sample-info .figure-media {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 620px;
+            padding: 20px;
+        }
+
+        #sample-info .figure-media img {
+            width: 95% !important;
+            max-width: 95%;
+            max-height: 560px;
+            height: auto !important;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .progress-inner {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 999px;
+            transition: width 0.3s ease;
+        }
+
+        #noiseless-channel .image-grid-2 {
+            grid-template-columns: 7fr 3fr !important;
+            align-items: stretch;
+        }
+
+        #noiseless-channel .figure-card {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #noiseless-channel .figure-media {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 620px;
+            padding: 24px;
+        }
+
+        #noiseless-channel .figure-media img {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100%;
+            max-height: 560px;
+            object-fit: contain;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1200px) {
+            #noiseless-channel .image-grid-2 {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <h1>Quantifying Sequencing Coverage Depth</h1>
+        <p>
+            This page presents the analysis results based on pure simulation parameters, including
+            sample information retrieval integrity and minimum sequencing coverage depth estimation.
+        </p>
+        <div class="top-meta">
+            <div class="top-chip">System: SCDW</div>
+            <div class="top-chip">Analysis object: DNA storage channel</div>
+            <div class="top-chip">Input type: Pure simulation</div>
+            <div class="top-chip">Current PCR cycles: {{ session.get("t", 10) }}</div>
+        </div>
+    </div>
+</header>
+
+<div class="page">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h3>Result Navigation</h3>
+            <p>Click to jump to the corresponding analysis module.</p>
+        </div>
+        <nav>
+            <a href="#sample-info">Sample Information Retrieval Integrity</a>
+            <a href="#min-coverage">Minimum Sequencing Coverage Depth for Recovering All Information</a>
+            <a href="#noiseless-channel">Simulation Results in the Noiseless Channel</a>
+            <a href="#noisy-channel">Simulation Results in the Noisy Channel</a>
+        </nav>
+    </aside>
+
+    <main class="content">
+        <div class="status-banner">
+            <div>
+                <strong>Analysis completed</strong>
+                <span>The current results have been generated. You may continue to adjust parameters and refresh figures or values.</span>
+            </div>
+            <div class="status-actions">
+                <button class="btn-ghost" onclick="window.location.href='/'">Back to Home</button>
+            </div>
+        </div>
+        <div class="section progress-panel" id="progress-section">
+            <div class="section-head">
+                <h2 class="section-title">Task Progress</h2>
+                <p class="section-desc" id="progress_text">Preparing...</p>
+            </div>
+            <div class="section-body">
+                <div class="progress-outer">
+                    <div class="progress-inner" id="progress_bar"></div>
+                </div>
+                <div class="helper-text" id="progress_percent" style="margin-top: 10px;">0%</div>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="label">Current input</div>
+                <div class="value">Pure simulation data</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Integrity analysis</div>
+                <div class="value">Fig. 1 can be updated</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Noiseless coverage depth</div>
+                <div class="value">Fig. 2 can be updated</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Noisy coverage depth</div>
+                <div class="value">Bounds can be updated</div>
+            </div>
+        </div>
+
+        <section class="section" id="sample-info">
+            <div class="section-head">
+                <h2 class="section-title">Sample Information Retrieval Integrity</h2>
+                <p class="section-desc">
+                    Under the noiseless-channel assumption, analyze the expected decoding proportion at a preset coverage depth,
+                    or determine the minimum sequencing coverage depth required to reach a preset decoding proportion.
+                </p>
+            </div>
+
+            <div class="section-body">
+                <div class="soft-note">
+                    <strong>Noiseless-channel assumption:</strong>
+                    a single read is sufficient to successfully recover an encoded strand.
+                </div>
+
+                <div class="image-grid-2">
+                    <article class="figure-card">
+                        <div class="figure-media">
+                            <img id="fig7_1" src="{{ url_for('uploaded_file', filename='图7-1.png') }}" alt="Fig. 1">
+                        </div>
+                        <div class="figure-caption">
+                            <div class="figure-label">Fig. 1 Expected decoding proportion vs. sequencing coverage depth</div>
+                            <p class="figure-text">
+                                The relationship between expected decoding proportion of encoded strands and sequencing coverage depth under two channels.
+                            </p>
+                        </div>
+                    </article>
+
+                    <div class="panel">
+                        <h4>Parameter Settings and Results</h4>
+
+                        <div class="form-group">
+                            <label for="choice">Mark Option</label>
+                            <select id="choice">
+                                <option value="preset_coverage">Preset coverage depth</option>
+                                <option value="expected_proportion">Expected decoding proportion of encoded strands</option>
+                            </select>
+                        </div>
+
+                        <div id="preset_coverage_input" class="form-group">
+                            <label for="preset_coverage">Preset coverage depth</label>
+                            <input type="number" id="preset_coverage" step="0.5" min="0.5" max="30" value="5">
+                            <button class="btn-primary" id="preset_coverage_btn">Update Parameter</button>
+                        </div>
+
+                        <div id="expected_proportion_input" class="form-group" style="display: none;">
+                            <label for="expected_proportion">Expected decoding proportion of encoded strands</label>
+                            <input type="number" id="expected_proportion" step="0.01" min="0" max="1" value="0.5">
+                            <button class="btn-primary" id="expected_proportion_btn">Update Parameter</button>
+                        </div>
+
+                        <div style="margin-top: 16px;">
+                            <div class="helper-text" style="margin-bottom: 8px;">Simulation results</div>
+                            <div id="result_message" class="coordinate-box"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="min-coverage">
+            <div class="section-head">
+                <h2 class="section-title">Minimum Sequencing Coverage Depth for Recovering All Information</h2>
+                <p class="section-desc">
+                    This section provides the corresponding results in both the noiseless and noisy channels.
+                </p>
+            </div>
+
+            <div class="section-body">
+                <div class="subsection" id="noiseless-channel">
+                    <h3 class="subsection-title">Simulation Results in the Noiseless Channel</h3>
+
+                    <div class="soft-note">
+                        <strong>This module provides:</strong>
+                        the expected minimum sequencing coverage depth required to successfully recover all information under the preset coding redundancy.
+                    </div>
+
+                    <div class="image-grid-2">
+                        <article class="figure-card">
+                            <div class="figure-media">
+                                <img id="fig7_2" src="{{ url_for('uploaded_file', filename='图7-2.png') }}" alt="Fig. 2">
+                            </div>
+                            <div class="figure-caption">
+                                <div class="figure-label">Fig. 2 Expected minimum sequencing coverage depth vs. coding redundancy</div>
+                                <p class="figure-text">
+                                    The relationship between expected sequencing coverage depth and coding redundancy required for successful decoding of all information.
+                                </p>
+                            </div>
+                        </article>
+
+                        <div class="panel">
+                            <h4>Parameter Settings</h4>
+
+                            <div class="form-group">
+                                <label for="coding_redundancy">Coding redundancy parameter</label>
+                                <div class="helper-text">
+                                    \[
+                                    \frac{\#encoded\ strands}{\#information\ strands}
+                                    \]
+                                </div>
+                                <input type="number" id="coding_redundancy" step="0.1" min="0.95" max="4" value="2">
+                            </div>
+
+                            <button class="btn-primary" id="coding_redundancy_btn">Update Parameter</button>
+
+                            <div style="margin-top: 16px;">
+                                <div class="helper-text" style="margin-bottom: 8px;">Simulation results</div>
+                                <div id="coding_redundancy_result" class="coordinate-box"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subsection" id="noisy-channel">
+                    <h3 class="subsection-title">Simulation Results in the Noisy Channel</h3>
+
+                    <div class="soft-note">
+                        <strong>This module provides:</strong>
+                        upper and lower bounds on the sequencing coverage depth required to recover all information.
+                    </div>
+
+                    <div class="panel-grid">
+                        <div class="panel">
+                            <h4>Parameter Settings</h4>
+
+                            <div class="form-group">
+                                <label for="R_noisy">Coding redundancy parameter</label>
+                                <div class="helper-text">
+                                    \[
+                                    \frac{\#encoded\ strands}{\#information\ strands}
+                                    \]
+                                </div>
+                                <input type="number" id="R_noisy" step="0.1" min="1.1" value="2">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="a">How many noisy copies of each encoded strand are needed to reconstruct it</label>
+                                <input type="number" id="a" step="1" min="2" value="2">
+                            </div>
+
+                            <button class="btn-primary" id="bounds_btn">Update Parameters</button>
+
+                            <div style="margin-top: 16px;">
+                                <div class="helper-text" style="margin-bottom: 8px;">Parameter feedback</div>
+                                <div id="bounds_result" class="coordinate-box"></div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <h4>Simulation Results</h4>
+                            <div class="result-box">
+                                The following upper and lower bounds hold with a probability of 99.9%.
+                            </div>
+
+                            <div class="metric-grid" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
+                                <div class="metric-card">
+                                    <div class="metric-name">Lower Bound</div>
+                                    <div class="metric-value" id="lower_bound_value">{{ lower_bound }}</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-name">Center Value</div>
+                                    <div class="metric-value" id="center_bound_value">{{ center_bound }}</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-name">Upper Bound</div>
+                                    <div class="metric-value" id="upper_bound_value">{{ upper_bound }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div class="toast" id="toast">Updated successfully</div>
+
+<script>
+    function showProgress(text = 'Preparing...') {
+        document.getElementById('progress-section').style.display = 'block';
+        document.getElementById('progress_text').innerText = text;
+        document.getElementById('progress_bar').style.width = '0%';
+        document.getElementById('progress_percent').innerText = '0%';
+    }
+
+    function updateProgress(percent, text = '') {
+        document.getElementById('progress_bar').style.width = percent + '%';
+        document.getElementById('progress_percent').innerText = percent + '%';
+        if (text) {
+            document.getElementById('progress_text').innerText = text;
+        }
+    }
+
+    function hideProgress() {
+        setTimeout(() => {
+            document.getElementById('progress-section').style.display = 'none';
+        }, 800);
+    }
+
+    function pollTask(taskId, onDone) {
+        const timer = setInterval(() => {
+            fetch(`/task_status/${taskId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.state === 'running') {
+                        updateProgress(data.progress || 0, data.message || 'Running...');
+                    } else if (data.state === 'done') {
+                        updateProgress(100, data.message || 'Completed');
+                        clearInterval(timer);
+                        hideProgress();
+                        onDone(data.result || {});
+                    } else if (data.state === 'error') {
+                        clearInterval(timer);
+                        hideProgress();
+                        alert(data.message || 'Task failed');
+                    }
+                })
+                .catch(err => {
+                    clearInterval(timer);
+                    hideProgress();
+                    console.error(err);
+                    alert('Failed to query task status.');
+                });
+        }, 500);
+    }
+
+    function showToast(message = 'Updated successfully') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2200);
+    }
+
+    function toggleInput() {
+        const choice = document.getElementById('choice').value;
+        const presetCoverageInput = document.getElementById('preset_coverage_input');
+        const expectedProportionInput = document.getElementById('expected_proportion_input');
+
+        if (choice === 'preset_coverage') {
+            presetCoverageInput.style.display = 'flex';
+            expectedProportionInput.style.display = 'none';
+        } else {
+            presetCoverageInput.style.display = 'none';
+            expectedProportionInput.style.display = 'flex';
+        }
+    }
+
+    const t = {{ session.get("t", 10) }};
+
+    function submitPresetCoverage() {
+        const presetCoverage = document.getElementById('preset_coverage').value;
+
+        showProgress('Starting task...');
+
+        fetch('/start_update_figure1', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                choice: 'preset_coverage',
+                value: presetCoverage,
+                t: t
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                pollTask(data.task_id, function(result) {
+                    document.getElementById('result_message').innerText = result.message || '';
+                    const img = document.getElementById('fig7_1');
+                    if (img && result.image_url) {
+                        img.src = result.image_url;
+                    }
+                    showToast();
+                });
+            } else {
+                hideProgress();
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            hideProgress();
+            console.error(error);
+        });
+    }
+
+    function submitExpectedProportion() {
+        const expectedProportion = document.getElementById('expected_proportion').value;
+
+        showProgress('Starting task...');
+
+        fetch('/start_update_figure1', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                choice: 'expected_proportion',
+                value: expectedProportion,
+                t: t
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                pollTask(data.task_id, function(result) {
+                    document.getElementById('result_message').innerText = result.message || '';
+                    const img = document.getElementById('fig7_1');
+                    if (img && result.image_url) {
+                        img.src = result.image_url;
+                    }
+                    showToast();
+                });
+            } else {
+                hideProgress();
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            hideProgress();
+            console.error(error);
+        });
+    }
+
+    function submitCodingRedundancy() {
+        const codingRedundancy = document.getElementById('coding_redundancy').value;
+
+        showProgress('Starting task...');
+
+        fetch('/start_update_figure2', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                coding_redundancy: codingRedundancy,
+                t: t
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                pollTask(data.task_id, function(result) {
+                    document.getElementById('coding_redundancy_result').innerText = result.message || '';
+                    const img = document.getElementById('fig7_2');
+                    if (img && result.image_url) {
+                        img.src = result.image_url;
+                    }
+                    showToast();
+                });
+            } else {
+                hideProgress();
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            hideProgress();
+            console.error(error);
+        });
+    }
+
+    function submitBoundsParameters() {
+        const R_noisy = document.getElementById('R_noisy').value;
+        const a = document.getElementById('a').value;
+
+        showProgress('Starting task...');
+
+        fetch('/start_update_bounds_parameters', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                R_noisy: R_noisy,
+                a: a
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                pollTask(data.task_id, function(result) {
+                    document.getElementById('lower_bound_value').innerText = result.lower_bound;
+                    document.getElementById('center_bound_value').innerText = result.center_bound;
+                    document.getElementById('upper_bound_value').innerText = result.upper_bound;
+                    document.getElementById('bounds_result').innerText = '';
+                    showToast();
+                });
+            } else {
+                hideProgress();
+                alert(data.message);
+            }
+        })
+        .catch(error => {
+            hideProgress();
+            console.error(error);
+        });
+    }
+
+    window.onload = function () {
+        document.getElementById('choice').addEventListener('change', toggleInput);
+        document.getElementById('preset_coverage_btn').addEventListener('click', submitPresetCoverage);
+        document.getElementById('expected_proportion_btn').addEventListener('click', submitExpectedProportion);
+        document.getElementById('coding_redundancy_btn').addEventListener('click', submitCodingRedundancy);
+        document.getElementById('bounds_btn').addEventListener('click', submitBoundsParameters);
+        toggleInput();
+    };
+</script>
+</body>
+</html>
